@@ -1,0 +1,137 @@
+.welcome-container {
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(180deg, #F5F7FF 0%, #FFFFFF 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  position: relative;
+}
+
+.logo-container {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1;
+}
+
+.logo-mobile {
+  font-size: 32px;
+  font-weight: 600;
+  color: #4B7BFF;
+  display: none;
+}
+
+.logo-desktop {
+  font-size: 24px;
+  font-weight: 600;
+  color: #4B7BFF;
+}
+
+.welcome-content {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 80px;
+}
+
+.welcome-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 32px 24px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.welcome-card h1 {
+  font-size: 32px;
+  font-weight: 600;
+  color: #333333;
+  margin: 0 0 16px 0;
+}
+
+.welcome-card .tagline {
+  font-size: 18px;
+  line-height: 1.5;
+  color: #666666;
+  margin: 0 0 40px 0;
+}
+
+.welcome-card h2 {
+  font-size: 24px;
+  font-weight: 500;
+  color: #333333;
+  margin: 0 0 24px 0;
+}
+
+.welcome-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.welcome-buttons button {
+  width: 100%;
+  padding: 16px;
+  border-radius: 100px;
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-button {
+  background: #4B7BFF;
+  color: #FFFFFF;
+  border: none;
+}
+
+.login-button:hover {
+  background: #3D63CC;
+}
+
+.register-button {
+  background: #F5F7FF;
+  color: #4B7BFF;
+  border: 2px solid #4B7BFF;
+}
+
+.register-button:hover {
+  background: #E6EBFF;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .logo-mobile {
+    display: block;
+  }
+
+  .logo-desktop {
+    display: none;
+  }
+
+  .welcome-card {
+    padding: 24px 16px;
+  }
+
+  .welcome-card h1 {
+    font-size: 28px;
+  }
+
+  .welcome-card .tagline {
+    font-size: 16px;
+  }
+
+  .welcome-card h2 {
+    font-size: 20px;
+  }
+
+  .welcome-buttons button {
+    padding: 14px;
+    font-size: 16px;
+  }
+} 
