@@ -1,16 +1,15 @@
-// TODO: Replace these with environment variables
+// Cloudinary configuration
 const CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET;
+const UPLOAD_PRESET = 'chat_images'; // Directly set the upload preset
 const FOLDER = 'property-connect/chat-images'; // Folder structure in Cloudinary
 
 export const uploadImage = async (file) => {
   try {
-    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    if (!CLOUD_NAME) {
       console.error('Missing Cloudinary configuration:', {
-        cloudName: CLOUD_NAME ? 'set' : 'missing',
-        uploadPreset: UPLOAD_PRESET ? 'set' : 'missing'
+        cloudName: CLOUD_NAME ? 'set' : 'missing'
       });
-      throw new Error('Cloudinary configuration missing. Please check your .env.local file.');
+      throw new Error('Cloudinary cloud name missing. Please check your .env.local file.');
     }
 
     const formData = new FormData();
