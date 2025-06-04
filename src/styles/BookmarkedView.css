@@ -378,6 +378,21 @@
   color: #0066CC;
 }
 
+.bookmark-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: contain;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-header .bookmark-avatar {
+  width: 48px;
+  height: 48px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .bookmarked-list {
@@ -576,6 +591,16 @@
     height: 24px;
     color: rgba(0, 0, 0, 0.5);
   }
+
+  .bookmark-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .bookmark-header .bookmark-avatar {
+    width: 40px;
+    height: 40px;
+  }
 }
 
 /* Skeleton Loading Animation */
@@ -656,4 +681,31 @@
 
 .retry-button:hover {
   background-color: #0056b3;
+}
+
+.no-bookmarks-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #666666;
+  background: #FFFFFF;
+  border-radius: 12px;
+  margin: 24px auto;
+  max-width: 400px;
+}
+
+.no-bookmarks-message p {
+  margin: 16px 0 0;
+  font-size: 16px;
+}
+
+.no-bookmarks-message svg {
+  color: #999999;
+}
+
+.browse-button:hover {
+  background: #0052a3 !important;
 } 

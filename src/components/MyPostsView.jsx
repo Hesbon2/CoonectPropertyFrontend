@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import '../styles/MyPostsView.css';
 import inquiryService from '../services/inquiry.service';
+import authService from '../services/auth.service';
+import socketService from '../services/socket.service';
+import { getInitialsAvatar } from '../utils/avatarUtils';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -32,6 +35,23 @@ const MyPostsView = () => {
 
   useEffect(() => {
     fetchUserInquiries(true);
+
+    // Setup socket listeners for real-time updates
+    const socket = socketService.connect();
+
+    socket.on('inquiry_updated', handleInquiryUpdated);
+    socket.on('inquiry_deleted', handleInquiryDeleted);
+    socket.on('engagement_updated', handleEngagementUpdated);
+    socket.on('bookmark_updated', handleBookmarkUpdated);
+    socket.on('like_updated', handleLikeUpdated);
+
+    return () => {
+      socket.off('inquiry_updated', handleInquiryUpdated);
+      socket.off('inquiry_deleted', handleInquiryDeleted);
+      socket.off('engagement_updated', handleEngagementUpdated);
+      socket.off('bookmark_updated', handleBookmarkUpdated);
+      socket.off('like_updated', handleLikeUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -47,24 +67,30 @@ const MyPostsView = () => {
         setPage(1);
       }
 
-      const response = await inquiryService.getMyInquiries(page, ITEMS_PER_PAGE);
+      const data = await inquiryService.getMyInquiries(page, ITEMS_PER_PAGE);
+      const currentUser = authService.getCurrentUser();
       
-      const formattedPosts = response.map(inquiry => ({
-        id: inquiry.id || inquiry._id,
-        postId: inquiry.postId || inquiry.id || inquiry._id,
-        title: `${inquiry.houseType} - ${inquiry.unitSize}`,
-        location: inquiry.location,
-        date: `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}`,
-        price: inquiry.budget.toLocaleString(),
-        duration: `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights`,
-        description: inquiry.description,
+      const formattedPosts = data.map(inquiry => {
+        return {
+          id: inquiry._id,
+          propertyTitle: `${inquiry.houseType || ''} ${inquiry.unitSize || ''}`.trim() || 'Property',
+          location: inquiry.location || 'Location not specified',
+          date: inquiry.checkInDate && inquiry.checkOutDate ? 
+            `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}` : '',
+          price: inquiry.budget?.toLocaleString() || '0',
+          duration: inquiry.checkInDate && inquiry.checkOutDate ? 
+            `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights` : '',
+          description: inquiry.description || '',
       stats: {
-          inquiries: inquiry.engagement?.inquiries?.toString() || '0',
-          likes: inquiry.engagement?.likes?.toString() || '0',
-          views: inquiry.engagement?.views?.toString() || '0'
+            inquiries: inquiry.engagement?.inquiries?.toString() || '0',
+            likes: inquiry.engagement?.likes?.toString() || '0',
+            views: inquiry.engagement?.views?.toString() || '0',
+            isLiked: Array.isArray(inquiry.likes) && inquiry.likes.includes(currentUser?._id),
+            isBookmarked: Array.isArray(inquiry.bookmarks) && inquiry.bookmarks.includes(currentUser?._id)
       },
-        postedTime: getTimeAgo(new Date(inquiry.createdAt))
-      }));
+          postedTime: getTimeAgo(new Date(inquiry.createdAt))
+        };
+      });
 
       setPosts(prev => isInitialFetch ? formattedPosts : [...prev, ...formattedPosts]);
       setHasMore(formattedPosts.length === ITEMS_PER_PAGE);
@@ -76,6 +102,92 @@ const MyPostsView = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Real-time update handlers
+  const handleInquiryUpdated = (updatedInquiry) => {
+    const currentUser = authService.getCurrentUser();
+    if (updatedInquiry.user?._id === currentUser?._id) {
+      setPosts(prev => prev.map(post => 
+        post.id === updatedInquiry._id ? formatPost(updatedInquiry) : post
+      ));
+    }
+  };
+
+  const handleInquiryDeleted = (inquiryId) => {
+    setPosts(prev => prev.filter(post => post.id !== inquiryId));
+  };
+
+  const handleEngagementUpdated = ({ inquiryId, engagement }) => {
+    setPosts(prev => prev.map(post => {
+      if (post.id === inquiryId) {
+        return {
+          ...post,
+          stats: {
+            ...post.stats,
+            inquiries: engagement.inquiries.toString(),
+            views: engagement.views.toString(),
+            likes: engagement.likes.toString()
+          }
+        };
+      }
+      return post;
+    }));
+  };
+
+  const handleBookmarkUpdated = ({ inquiryId, isBookmarked }) => {
+    setPosts(prev => prev.map(post => {
+      if (post.id === inquiryId) {
+        return {
+          ...post,
+          stats: {
+            ...post.stats,
+            isBookmarked
+          }
+        };
+      }
+      return post;
+    }));
+  };
+
+  const handleLikeUpdated = ({ inquiryId, isLiked, likesCount }) => {
+    setPosts(prev => prev.map(post => {
+      if (post.id === inquiryId) {
+        return {
+          ...post,
+          stats: {
+            ...post.stats,
+            isLiked,
+            likes: likesCount.toString()
+          }
+        };
+      }
+      return post;
+    }));
+  };
+
+  // Helper function to format post data
+  const formatPost = (inquiry) => {
+    const currentUser = authService.getCurrentUser();
+    return {
+      id: inquiry._id,
+      propertyTitle: `${inquiry.houseType || ''} ${inquiry.unitSize || ''}`.trim() || 'Property',
+      location: inquiry.location || 'Location not specified',
+      date: inquiry.checkInDate && inquiry.checkOutDate ? 
+        `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}` : '',
+      price: inquiry.budget?.toLocaleString() || '0',
+      duration: inquiry.checkInDate && inquiry.checkOutDate ? 
+        `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights` : '',
+      description: inquiry.description || '',
+      stats: {
+        inquiries: inquiry.engagement?.inquiries?.toString() || '0',
+        likes: inquiry.engagement?.likes?.toString() || '0',
+        views: inquiry.engagement?.views?.toString() || '0',
+        isLiked: Array.isArray(inquiry.likes) && inquiry.likes.includes(currentUser?._id),
+        isBookmarked: Array.isArray(inquiry.bookmarks) && inquiry.bookmarks.includes(currentUser?._id)
+      },
+      postedTime: getTimeAgo(new Date(inquiry.createdAt))
+    };
   };
 
   const getTimeAgo = (date) => {

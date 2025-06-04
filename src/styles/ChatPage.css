@@ -70,13 +70,14 @@
 .user-avatar-wrapper {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .user-avatar {
   width: 64px;
   height: 64px;
-  aspect-ratio: 1/1;
-  border-radius: 50px;
+  border-radius: 50%;
+  object-fit: contain;
 }
 
 .header-details {
@@ -367,16 +368,27 @@
 
 .message-avatar-wrapper {
   display: flex;
-  padding: 10px 0px;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
 }
 
 .message-avatar {
-  width: 44px;
-  height: 44px;
-  aspect-ratio: 1/1;
-  border-radius: 50px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .user-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .message-avatar {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 .message-content {

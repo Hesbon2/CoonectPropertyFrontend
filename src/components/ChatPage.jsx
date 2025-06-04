@@ -1,23 +1,37 @@
 import React from "react";
 import "../styles/ChatPage.css";
+import { getInitialsAvatar } from '../utils/avatarUtils';
 
 function ChatPage() {
+  // Example user data - in a real app, this would come from props or context
+  const user = {
+    firstName: "Serah",
+    lastName: "Johnson",
+    userType: "Customer"
+  };
+
+  const host = {
+    firstName: "Thelinks",
+    lastName: "Ads",
+    userType: "Host"
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-header">
         <div className="header-content">
           <div className="user-avatar-wrapper">
             <img
-              src="https://cdn.builder.io/api/v1/image/assets/TEMP/4a15f4dcfb917418d4d57866dac5f56c11440d49?placeholderIfAbsent=true"
-              alt="User avatar"
+              src={getInitialsAvatar(user.firstName, user.lastName)}
+              alt={`${user.firstName} ${user.lastName}`}
               className="user-avatar"
             />
           </div>
           <div className="header-details">
             <div className="header-top-row">
               <div className="user-info">
-                <div className="user-name">Serah Johnson</div>
-                <div className="user-role">Customer</div>
+                <div className="user-name">{user.firstName} {user.lastName}</div>
+                <div className="user-role">{user.userType}</div>
                 <div className="time-indicator">
                   <div>
                     <div
@@ -87,8 +101,8 @@ function ChatPage() {
         <div className="message-bubble">
           <div className="message-avatar-wrapper">
             <img
-              src="https://cdn.builder.io/api/v1/image/assets/TEMP/1a62f5bf020fbae80bb6a60974c7e2e86993f1ae?placeholderIfAbsent=true"
-              alt="Host avatar"
+              src={getInitialsAvatar(host.firstName, host.lastName)}
+              alt={`${host.firstName} ${host.lastName}`}
               className="message-avatar"
             />
           </div>
@@ -97,19 +111,19 @@ function ChatPage() {
               <div className="message-header-row">
                 <div className="sender-info">
                   <div className="sender-name-wrapper">
-                    <div className="sender-name">Thelinks Ads</div>
+                    <div className="sender-name">{host.firstName} {host.lastName}</div>
                   </div>
-                  <div className="sender-role">Host</div>
+                  <div className="sender-role">{host.userType}</div>
                   <div className="message-time-indicator">
                     <div>
                       <div
                         dangerouslySetInnerHTML={{
                           __html:
-                            '<svg id="41:4272" layer-name="lucide:dot" width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="dot-icon" style="width: 24px; height: 24px; aspect-ratio: 1/1"> <path d="M12.1001 13.6C12.6524 13.6 13.1001 13.1523 13.1001 12.6C13.1001 12.0477 12.6524 11.6 12.1001 11.6C11.5478 11.6 11.1001 12.0477 11.1001 12.6C11.1001 13.1523 11.5478 13.6 12.1001 13.6Z" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </svg>',
+                            '<svg id="41:4304" layer-name="lucide:dot" width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="dot-icon" style="width: 24px; height: 24px; aspect-ratio: 1/1"> <path d="M12.1001 13.6C12.6524 13.6 13.1001 13.1523 13.1001 12.6C13.1001 12.0477 12.6524 11.6 12.1001 11.6C11.5478 11.6 11.1001 12.0477 11.1001 12.6C11.1001 13.1523 11.5478 13.6 12.1001 13.6Z" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </svg>',
                         }}
                       />
                     </div>
-                    <div className="message-time">2sec</div>
+                    <div className="message-time">5min</div>
                   </div>
                 </div>
                 <div className="message-actions">
@@ -118,7 +132,7 @@ function ChatPage() {
                       <div
                         dangerouslySetInnerHTML={{
                           __html:
-                            '<svg id="41:4277" layer-name="mage:dots" width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="dots-icon" style="width: 24px; height: 24px; aspect-ratio: 1/1"> <path d="M12 6.42C12.2546 6.42 12.4988 6.31886 12.6789 6.13882C12.8589 5.95879 12.96 5.71461 12.96 5.46C12.96 5.20539 12.8589 4.96121 12.6789 4.78118C12.4988 4.60114 12.2546 4.5 12 4.5C11.7454 4.5 11.5013 4.60114 11.3212 4.78118C11.1412 4.96121 11.04 5.20539 11.04 5.46C11.04 5.71461 11.1412 5.95879 11.3212 6.13882C11.5013 6.31886 11.7454 6.42 12 6.42ZM12 13.46C12.2546 13.46 12.4988 13.3589 12.6789 13.1788C12.8589 12.9988 12.96 12.7546 12.96 12.5C12.96 12.2454 12.8589 12.0012 12.6789 11.8212C12.4988 11.6411 12.2546 11.54 12 11.54C11.7454 11.54 11.5013 11.6411 11.3212 11.8212C11.1412 12.0012 11.04 12.2454 11.04 12.5C11.04 12.7546 11.1412 12.9988 11.3212 13.1788C11.5013 13.3589 11.7454 13.46 12 13.46ZM12 20.5C12.2546 20.5 12.4988 20.3989 12.6789 20.2188C12.8589 20.0388 12.96 19.7946 12.96 19.54C12.96 19.2854 12.8589 19.0412 12.6789 18.8612C12.4988 18.6811 12.2546 18.58 12 18.58C11.7454 18.58 11.5013 18.6811 11.3212 18.8612C11.1412 19.0412 11.04 19.2854 11.04 19.54C11.04 19.7946 11.1412 20.0388 11.3212 20.2188C11.5013 20.3989 11.7454 20.5 12 20.5Z" stroke="#666666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> </svg>',
+                            '<svg id="41:4309" layer-name="mage:dots" width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="dots-icon" style="width: 24px; height: 24px; aspect-ratio: 1/1"> <path d="M12 6.42C12.2546 6.42 12.4988 6.31886 12.6789 6.13882C12.8589 5.95879 12.96 5.71461 12.96 5.46C12.96 5.20539 12.8589 4.96121 12.6789 4.78118C12.4988 4.60114 12.2546 4.5 12 4.5C11.7454 4.5 11.5013 4.60114 11.3212 4.78118C11.1412 4.96121 11.04 5.20539 11.04 5.46C11.04 5.71461 11.1412 5.95879 11.3212 6.13882C11.5013 6.31886 11.7454 6.42 12 6.42ZM12 13.46C12.2546 13.46 12.4988 13.3589 12.6789 13.1788C12.8589 12.9988 12.96 12.7546 12.96 12.5C12.96 12.2454 12.8589 12.0012 12.6789 11.8212C12.4988 11.6411 12.2546 11.54 12 11.54C11.7454 11.54 11.5013 11.6411 11.3212 11.8212C11.1412 12.0012 11.04 12.2454 11.04 12.5C11.04 12.7546 11.1412 12.9988 11.3212 13.1788C11.5013 13.3589 11.7454 13.46 12 13.46ZM12 20.5C12.2546 20.5 12.4988 20.3989 12.6789 20.2188C12.8589 20.0388 12.96 19.7946 12.96 19.54C12.96 19.2854 12.8589 19.0412 12.6789 18.8612C12.4988 18.6811 12.2546 18.58 12 18.58C11.7454 18.58 11.5013 18.6811 11.3212 18.8612C11.1412 19.0412 11.04 19.2854 11.04 19.54C11.04 19.7946 11.1412 20.0388 11.3212 20.2188C11.5013 20.3989 11.7454 20.5 12 20.5Z" stroke="#666666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> </svg>',
                         }}
                       />
                     </div>

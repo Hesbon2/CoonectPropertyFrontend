@@ -1,36 +1,45 @@
 import api from './api.config';
 
 class AuthService {
+  constructor() {
+    this.tokenKey = 'auth_token';
+    this.userKey = 'user';
+  }
+
   async login(email, password) {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post('/api/auth/login', { email, password });
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem(this.tokenKey, response.data.token);
+      localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
     }
     return response.data;
   }
 
   async register(userData) {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/api/auth/register', userData);
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem(this.tokenKey, response.data.token);
+      localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
     }
     return response.data;
   }
 
   logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem(this.tokenKey);
+    localStorage.removeItem(this.userKey);
+  }
+
+  getToken() {
+    return localStorage.getItem(this.tokenKey);
   }
 
   getCurrentUser() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    const userStr = localStorage.getItem(this.userKey);
+    return userStr ? JSON.parse(userStr) : null;
   }
 
   async updatePassword(currentPassword, newPassword) {
-    const response = await api.put('/auth/password', {
+    const response = await api.put('/api/auth/password', {
       currentPassword,
       newPassword,
     });
@@ -38,10 +47,10 @@ class AuthService {
   }
 
   async updateProfile(profileData) {
-    const response = await api.put('/auth/profile', profileData);
+    const response = await api.put('/api/auth/profile', profileData);
     // Update stored user data
     if (response.data) {
-      localStorage.setItem('user', JSON.stringify(response.data));
+      localStorage.setItem(this.userKey, JSON.stringify(response.data));
     }
     return response.data;
   }
@@ -49,30 +58,34 @@ class AuthService {
   async uploadProfilePicture(file) {
     const formData = new FormData();
     formData.append('profilePicture', file);
-    const response = await api.put('/auth/profile-picture', formData, {
+    const response = await api.put('/api/auth/profile-picture', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
     // Update stored user data
     if (response.data) {
-      localStorage.setItem('user', JSON.stringify(response.data));
+      localStorage.setItem(this.userKey, JSON.stringify(response.data));
     }
     return response.data;
   }
 
   async deleteAccount() {
-    await api.delete('/auth/account');
+    await api.delete('/api/auth/account');
     this.logout();
   }
 
   async getProfile() {
-    const response = await api.get('/auth/me');
+    const response = await api.get('/api/auth/me');
     return response.data;
   }
 
   isAuthenticated() {
-    return !!localStorage.getItem('token');
+    return !!this.getToken();
+  }
+
+  updateUser(user) {
+    localStorage.setItem(this.userKey, JSON.stringify(user));
   }
 }
 

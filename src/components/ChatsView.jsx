@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import chatService from '../services/chat.service';
+import socketService from '../services/socket.service';
 import '../styles/ChatsView.css';
+import ChatInput from './ChatInput';
+import ImageViewer from './ImageViewer';
+import { getInitialsAvatar } from '../utils/avatarUtils';
+import authService from '../services/auth.service';
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23E1E1E1'/%3E%3Cpath d='M20 21c-3.315 0-6-2.685-6-6s2.685-6 6-6 6 2.685 6 6-2.685 6-6 6zm0 2c4.42 0 8 1.79 8 4v3H12v-3c0-2.21 3.58-4 8-4z' fill='%23A1A1A1'/%3E%3C/svg%3E";
 const ITEMS_PER_PAGE = 10;
@@ -19,6 +24,16 @@ const ChatsView = ({ onChatSelect }) => {
   const [initialLoad, setInitialLoad] = useState(true);
   const lastChatRef = useRef();
   const loadingRef = useRef();
+  const [editMessageText, setEditMessageText] = useState('');
+  const [showReactions, setShowReactions] = useState(null);
+  const [longPressTimeout, setLongPressTimeout] = useState(null);
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
+  const [showMessageMenu, setShowMessageMenu] = useState(null);
+  const [starredMessages, setStarredMessages] = useState([]);
+  const messagesContainerRef = useRef(null);
+  const [typingUsers, setTypingUsers] = useState({});
+  const [viewerImages, setViewerImages] = useState(null);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
 
   const lastChatCallback = useCallback(node => {
     if (loading) return;
@@ -43,6 +58,67 @@ const ChatsView = ({ onChatSelect }) => {
     }
   }, [page]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (messagesContainerRef.current?.contains(event.target)) {
+        const isMenuButton = event.target.closest('.message-menu-button');
+        const isMenuContent = event.target.closest('.message-menu');
+        const isReactionButton = event.target.closest('.reaction-option');
+        const isReactionBadge = event.target.closest('.reaction-badge');
+        
+        if (!isMenuButton && !isMenuContent && !isReactionButton && !isReactionBadge) {
+          setShowMessageMenu(null);
+          setShowReactions(null);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Connect to socket server
+    const socket = socketService.connect();
+
+    // Set up socket event listeners
+    socket.on('new_message', handleNewMessage);
+    socket.on('message_updated', handleMessageUpdated);
+    socket.on('message_deleted', handleMessageDeleted);
+    socket.on('reaction_updated', handleReactionUpdated);
+    socket.on('user_typing', handleUserTyping);
+    socket.on('message_read', handleMessageRead);
+    socket.on('user_status_changed', handleUserStatusChanged);
+
+    return () => {
+      // Cleanup socket listeners
+      socketService.removeAllListeners();
+      socketService.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedChat) {
+      // Join the chat room when a chat is selected
+      socketService.joinChat(selectedChat.id);
+      return () => {
+        // Leave the chat room when component unmounts or chat changes
+        socketService.leaveChat(selectedChat.id);
+      };
+    }
+  }, [selectedChat]);
+
   const fetchChats = async (isInitialFetch = false) => {
     try {
       if (isInitialFetch) {
@@ -65,12 +141,15 @@ const ChatsView = ({ onChatSelect }) => {
       const formattedChats = Object.values(chatsByInquiry).map(chat => {
         const inquiry = chat.inquiry || {};
         const inquiryUser = inquiry.user || {};
+        const firstName = inquiryUser.firstName || '';
+        const lastName = inquiryUser.lastName || '';
+        
         return {
           id: chat._id || chat.id,
           inquiryId: inquiry._id || chat.inquiryId,
-          avatar: inquiryUser.avatar || DEFAULT_AVATAR,
-          userName: inquiryUser.firstName && inquiryUser.lastName ? 
-            `${inquiryUser.firstName} ${inquiryUser.lastName}` : 'Anonymous User',
+          avatar: inquiryUser.avatar || getInitialsAvatar(firstName, lastName),
+          userName: firstName && lastName ? 
+            `${firstName} ${lastName}` : 'Anonymous User',
           userType: inquiry.requesterType || 'Customer',
           propertyTitle: `${inquiry.houseType || 'Property'} - ${inquiry.unitSize || ''}`,
           location: inquiry.location || 'Location not specified',
@@ -132,14 +211,19 @@ const ChatsView = ({ onChatSelect }) => {
       // Transform messages to match our display format
       const formattedMessages = (chatData.messages || []).map(msg => {
         const sender = msg.sender || {};
+        const firstName = sender.firstName || '';
+        const lastName = sender.lastName || '';
         return {
           id: msg._id || msg.id,
           sender: msg.sender?._id === chatData.participant?._id ? 'user' : 'host',
           name: sender.firstName && sender.lastName ? 
             `${sender.firstName} ${sender.lastName}` : 'Anonymous',
-          avatar: sender.profilePicture || DEFAULT_AVATAR,
+          avatar: sender.profilePicture || getInitialsAvatar(firstName, lastName),
           content: msg.content,
+          messageType: msg.messageType,
+          images: msg.images || [],
           time: getTimeAgo(new Date(msg.createdAt)),
+          createdAt: msg.createdAt,
           link: msg.link
         };
       });
@@ -153,37 +237,38 @@ const ChatsView = ({ onChatSelect }) => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat?.id) return;
-
+  const handleSendMessage = async (messageData) => {
     try {
-      // Optimistic update
-      const optimisticMessage = {
-        id: Date.now().toString(),
-        sender: 'user',
-        name: 'You',
-        avatar: DEFAULT_AVATAR,
-        content: newMessage,
-        time: 'just now',
-        isOptimistic: true
-      };
-      
-      setMessages(prev => [...prev, optimisticMessage]);
-      setNewMessage('');
+      if (!selectedChat) {
+        setError('No chat selected');
+        return;
+      }
 
-      const messageData = chatService.formatMessageData(newMessage);
+      // Send message through chat service
       const response = await chatService.sendMessage(selectedChat.id, messageData);
       
-      // Replace optimistic message with real one
-      setMessages(prev => prev.map(msg => 
-        msg.id === optimisticMessage.id ? response : msg
-      ));
+      // Add the new message to the messages list
+      const formattedMessage = {
+        id: response._id,
+        sender: 'user',
+        name: authService.getCurrentUser()?.firstName + ' ' + authService.getCurrentUser()?.lastName,
+        avatar: authService.getCurrentUser()?.profilePicture || getInitialsAvatar(
+          authService.getCurrentUser()?.firstName,
+          authService.getCurrentUser()?.lastName
+        ),
+        content: messageData.content,
+        type: messageData.type,
+        time: getTimeAgo(new Date()),
+        createdAt: new Date()
+      };
+
+      setMessages(prev => [...prev, formattedMessage]);
+
+      // Also notify through socket for real-time updates
+    socketService.sendMessage(selectedChat.id, messageData);
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Failed to send message');
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(msg => !msg.isOptimistic));
-      setNewMessage(newMessage); // Restore the message text
+      setError('Failed to send message. Please try again.');
     }
   };
 
@@ -194,92 +279,514 @@ const ChatsView = ({ onChatSelect }) => {
     }
   };
 
-  const renderChatModal = () => {
-    if (!selectedChat) return null;
+  const handleEditMessage = (id) => {
+    const message = messages.find(msg => msg.id === id);
+    if (message) {
+      setEditMessageText(message.content);
+    }
+  };
 
-    return (
-      <div className="chats-modal">
-        <div className="chat-modal-header">
-          <div className="chat-header-left">
-          <div className="chat-user-info">
+  const handleSaveEdit = (id) => {
+    const updatedMessages = messages.map(msg =>
+      msg.id === id ? { ...msg, content: editMessageText } : msg
+    );
+    setMessages(updatedMessages);
+    setEditMessageText('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditMessageText('');
+  };
+
+  const handleDeleteMessage = (id) => {
+    socketService.deleteMessage(selectedChat.id, id);
+  };
+
+  const handleReaction = (messageId, emoji) => {
+    const message = messages.find(msg => msg.id === messageId);
+    const hasReacted = message?.reactions?.some(r => 
+      r.emoji === emoji && r.users.includes(authService.getCurrentUser().id)
+    );
+
+    if (hasReacted) {
+      socketService.removeReaction(selectedChat.id, messageId, emoji);
+    } else {
+      socketService.addReaction(selectedChat.id, messageId, emoji);
+    }
+  };
+
+  const handleReply = (msg) => {
+    // Close menu
+    setShowMessageMenu(null);
+    // Set reply content in chat input
+    // This will be handled by ChatInput component
+    if (onChatSelect) {
+      onChatSelect({
+        ...selectedChat,
+        replyTo: {
+          id: msg.id,
+          content: msg.content,
+          sender: msg.name
+        }
+      });
+    }
+  };
+
+  const handleStarMessage = (msgId) => {
+    setStarredMessages(prev => {
+      const isStarred = prev.includes(msgId);
+      return isStarred ? prev.filter(id => id !== msgId) : [...prev, msgId];
+    });
+    setShowMessageMenu(null);
+  };
+
+  const handleSetShowReactions = (id) => {
+    setShowReactions(id);
+  };
+
+  const handleMessageInteraction = (e, msgId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if click is on menu or reactions
+    const isMenuButton = e.target.closest('.message-menu-button');
+    const isMenuContent = e.target.closest('.message-menu');
+    const isReactionButton = e.target.closest('.reaction-option');
+    const isReactionBadge = e.target.closest('.reaction-badge');
+    
+    if (!isMenuButton && !isMenuContent && !isReactionButton && !isReactionBadge) {
+      // Close both menus and reactions if clicking on message body
+      setShowMessageMenu(null);
+      if (!isMobileView) {
+        setShowReactions(showReactions === msgId ? null : msgId);
+      }
+    }
+  };
+
+  const handleTouchStart = (msgId) => {
+    const timeout = setTimeout(() => {
+      setShowReactions(msgId);
+    }, 500); // 500ms long press
+    
+    setLongPressTimeout(timeout);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimeout) {
+      clearTimeout(longPressTimeout);
+      setLongPressTimeout(null);
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimeout) {
+      clearTimeout(longPressTimeout);
+      setLongPressTimeout(null);
+    }
+  };
+
+  // Socket event handlers
+  const handleNewMessage = (message) => {
+    setMessages(prev => [...prev, formatMessage(message)]);
+  };
+
+  const handleMessageUpdated = (message) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === message._id ? formatMessage(message) : msg
+    ));
+  };
+
+  const handleMessageDeleted = ({ messageId }) => {
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+  };
+
+  const handleReactionUpdated = ({ messageId, reactions }) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, reactions: formatReactions(reactions) } : msg
+    ));
+  };
+
+  const handleUserTyping = ({ userId, isTyping }) => {
+    // Update typing indicator state
+    setTypingUsers(prev => {
+      if (isTyping) {
+        return { ...prev, [userId]: true };
+      } else {
+        const { [userId]: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handleMessageRead = ({ messageId, userId }) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, readBy: [...msg.readBy || [], userId] } : msg
+    ));
+  };
+
+  const handleUserStatusChanged = ({ userId, isOnline, lastSeen }) => {
+    // Update user status in chat list
+    setChats(prev => prev.map(chat => {
+      if (chat.userId === userId) {
+        return { ...chat, isOnline, lastSeen };
+      }
+      return chat;
+    }));
+  };
+
+  // Helper functions
+  const formatMessage = (message) => {
+    const sender = message.sender || {};
+    return {
+      id: message._id,
+      sender: message.sender._id === authService.getCurrentUser().id ? 'user' : 'host',
+      name: `${sender.firstName} ${sender.lastName}`,
+      avatar: sender.avatar || getInitialsAvatar(sender.firstName, sender.lastName),
+      content: message.content,
+      type: message.messageType,
+      images: message.images,
+      fileName: message.content, // Original filename
+      reactions: formatReactions(message.reactions),
+      readBy: message.readBy,
+      createdAt: message.createdAt,
+      isEdited: message.isEdited,
+      editedAt: message.editedAt
+    };
+  };
+
+  const formatReactions = (reactions) => {
+    if (!reactions) return [];
+    
+    return Object.entries(reactions).map(([emoji, users]) => ({
+      emoji,
+      count: users.length,
+      users
+    }));
+  };
+
+  // Add this helper function at the top level
+  const groupMessagesByImageBatch = (messages) => {
+    const groupedMessages = [];
+    let currentGroup = null;
+
+    messages.forEach((msg) => {
+      if (msg.messageType !== 'image' || !msg.images || msg.images.length === 0) {
+        if (currentGroup) {
+          groupedMessages.push(currentGroup);
+          currentGroup = null;
+        }
+        groupedMessages.push(msg);
+        return;
+      }
+
+      // Check if this message should be part of the current group
+      const shouldGroup = currentGroup && 
+        msg.sender === currentGroup.sender &&
+        msg.name === currentGroup.name &&
+        Math.abs(new Date(msg.createdAt) - new Date(currentGroup.createdAt)) < 60000; // 1 minute threshold
+
+      if (shouldGroup) {
+        // Add images to current group
+        currentGroup.images = [...currentGroup.images, ...msg.images];
+      } else {
+        // Start a new group
+        if (currentGroup) {
+          groupedMessages.push(currentGroup);
+        }
+        currentGroup = {
+          ...msg,
+          isImageGroup: true
+        };
+      }
+    });
+
+    // Add the last group if exists
+    if (currentGroup) {
+      groupedMessages.push(currentGroup);
+    }
+
+    return groupedMessages;
+  };
+
+  const handleImageClick = (images, clickedIndex) => {
+    setViewerImages(images);
+    setViewerInitialIndex(clickedIndex);
+  };
+
+  const closeImageViewer = () => {
+    setViewerImages(null);
+    setViewerInitialIndex(0);
+  };
+
+  const renderMessage = (msg, index) => {
+    const renderImageGrid = (images) => {
+      const imageCount = images.length;
+      if (imageCount === 0) return null;
+
+      if (imageCount === 1) {
+        return (
+          <div className="message-image-container">
             <img 
-                src={selectedChat.avatar || DEFAULT_AVATAR} 
-              alt={selectedChat.userName} 
-              className="chat-avatar"
+              src={images[0]} 
+              alt="Shared image" 
+              className="message-image"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleImageClick(images, 0);
+              }}
             />
-            <div className="chat-user-details">
-              <h3 className="chat-user-name">{selectedChat.userName}</h3>
-              <div className="chat-user-meta">
-                <span>{selectedChat.userType}</span>
-                <span>•</span>
-                <span>{selectedChat.time}</span>
-                </div>
+            {msg.content && (
+              <div className="image-info">
+                <span className="file-name">{msg.content}</span>
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        );
+      }
 
-        <div className="property-preview">
-          <div className="property-preview-title">{selectedChat.propertyTitle}</div>
-          <div className="property-preview-location">{selectedChat.location}</div>
-          <div className="property-info">
-            <span className="property-date">{selectedChat.date}</span>
-            <span className="property-price">Ksh {selectedChat.price}/night</span>
-          </div>
-        </div>
-        
-        <div className="chat-messages">
-          {messages.map((msg, index) => (
-            <div key={msg.id || `msg-${index}`} className={`message ${msg.sender}`}>
+      return (
+        <div className={`message-image-grid grid-${Math.min(imageCount, 4)}`}>
+          {images.slice(0, 4).map((imageUrl, imgIndex) => (
+            <div 
+              key={imgIndex} 
+              className="grid-image"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleImageClick(images, imgIndex);
+              }}
+            >
               <img 
-                src={msg.avatar || DEFAULT_AVATAR} 
-                alt={msg.name} 
-                className="message-avatar" 
+                src={imageUrl} 
+                alt={`Shared image ${imgIndex + 1}`}
               />
-              <div className="message-content-wrapper">
-                <div className="message-sender">{msg.name}</div>
-                <div className="message-bubble">
-                  {msg.content}
-                  {msg.link && (
-                    <div>
-                      <a href={msg.link} target="_blank" rel="noopener noreferrer">
-                        {msg.link}
-                      </a>
-                    </div>
-                  )}
-                </div>
-                <div className="message-time">{msg.time}</div>
-              </div>
+              {imgIndex === 3 && imageCount > 4 && (
+                <div className="image-count">+{imageCount - 4}</div>
+              )}
             </div>
           ))}
         </div>
-        
-        <div className="chat-input-container">
-          <div className="chat-input-wrapper">
-            <button className="chat-input-button">
-              <svg viewBox="0 0 32 32" width="32" height="32" fill="currentColor">
-                <path fillRule="evenodd" clipRule="evenodd" d="M17.5 5.5C17.5 5.10218 17.342 4.72064 17.0607 4.43934C16.7794 4.15804 16.3978 4 16 4C15.6022 4 15.2206 4.15804 14.9393 4.43934C14.658 4.72064 14.5 5.10218 14.5 5.5V14.5H5.5C5.10218 14.5 4.72064 14.658 4.43934 14.9393C4.15804 15.2206 4 15.6022 4 16C4 16.3978 4.15804 16.7794 4.43934 17.0607C4.72064 17.342 5.10218 17.5 5.5 17.5H14.5V26.5C14.5 26.8978 14.658 27.2794 14.9393 27.5607C15.2206 27.842 15.6022 28 16 28C16.3978 28 16.7794 27.842 17.0607 27.5607C17.342 27.2794 17.5 26.8978 17.5 26.5V17.5H26.5C26.8978 17.5 27.2794 17.342 27.5607 17.0607C27.842 16.7794 28 16.3978 28 16C28 15.6022 27.842 15.2206 27.5607 14.9393C27.2794 14.658 26.8978 14.5 26.5 14.5H17.5V5.5Z" fill="#666666"/>
+      );
+    };
+
+    return (
+    <div 
+      key={msg.id || `msg-${index}`} 
+      className={`message ${msg.sender}`}
+      onClick={(e) => handleMessageInteraction(e, msg.id)}
+      onTouchStart={() => handleTouchStart(msg.id)}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+    >
+      <div className="message-container">
+        <div className="message-avatar">
+          <img 
+            src={msg.avatar} 
+            alt={`${msg.name}'s avatar`}
+            className="message-avatar-image"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = getInitialsAvatar(msg.name.split(' ')[0], msg.name.split(' ')[1]);
+            }}
+          />
+        </div>
+        <div className="message-content-wrapper">
+          <div className="message-header">
+            <div className="message-info">
+              <span className="message-sender">{msg.name}</span>
+              <span className="message-type">{msg.sender === 'host' ? 'Host' : 'Customer'}</span>
+              <span className="message-time">{msg.time}</span>
+            </div>
+            <div className="message-actions">
+              <button 
+                className="message-menu-button" 
+                title="More options"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMessageMenu(showMessageMenu === msg.id ? null : msg.id);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/>
+                </svg>
+              </button>
+              {showMessageMenu === msg.id && (
+                <div className="message-menu">
+                  <button 
+                    className="message-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReply(msg);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                      <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" fill="currentColor"/>
+                    </svg>
+                    Reply
+                  </button>
+                  <button 
+                    className={`message-menu-item ${starredMessages.includes(msg.id) ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStarMessage(msg.id);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="currentColor"/>
+                    </svg>
+                    {starredMessages.includes(msg.id) ? 'Unstar' : 'Star'}
+                  </button>
+                    {msg.messageType === 'image' && msg.images && msg.images.length > 0 && (
+                      <button 
+                        className="message-menu-item"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(msg.images[0], '_blank');
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="18" height="18">
+                          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" fill="currentColor"/>
+                        </svg>
+                        Download
+                      </button>
+                    )}
+                  <button 
+                    className="message-menu-item delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteMessage(msg.id);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="message-bubble">
+              {msg.messageType === 'image' && msg.images && msg.images.length > 0 ? (
+                renderImageGrid(msg.images)
+            ) : (
+              <div className="message-content">
+                <div className="message-text">
+                  {msg.content}
+                  {msg.link && (
+                    <a 
+                      href={msg.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="message-link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {msg.link}
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="message-timestamp">
+            {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            })}
+          </div>
+        </div>
+      </div>
+      {msg.reactions && msg.reactions.length > 0 && (
+        <div className="message-reactions">
+          {msg.reactions.map((reaction, index) => (
+            <button 
+              key={index} 
+              className="reaction-badge"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReaction(msg.id, reaction.emoji);
+              }}
+            >
+              {reaction.emoji}
+              {reaction.count > 1 && <span className="reaction-count">{reaction.count}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  };
+
+  const renderChatModal = () => {
+    if (!selectedChat) return null;
+
+    // Group messages by image batches
+    const groupedMessages = groupMessagesByImageBatch(messages);
+
+    return (
+      <div className="chats-modal">
+        {/* Chat Header */}
+        <div className="chat-modal-header">
+          <div className="chat-header-content">
+          <div className="chat-user-info">
+              <div className="chat-avatar">
+            <img 
+              src={selectedChat.avatar} 
+              alt={selectedChat.userName} 
+                  className="chat-avatar-image"
+            />
+              </div>
+            <div className="chat-user-details">
+                <div className="chat-user-main">
+              <h3 className="chat-user-name">{selectedChat.userName}</h3>
+                  <span className="user-type">{selectedChat.userType}</span>
+                  <span className="time-indicator">• {selectedChat.time}</span>
+              </div>
+            </div>
+          </div>
+          <div className="chat-header-actions">
+              <button className="header-action-button">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="currentColor"/>
+                </svg>
+              </button>
+              <button className="header-close-button" onClick={() => setSelectedChat(null)}>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
               </svg>
             </button>
-            <input 
-              type="text" 
-              placeholder="Type your message..." 
-              className="chat-input"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
+            </div>
           </div>
-          <button 
-            className="chat-send-button"
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-          >
-            <svg viewBox="0 0 32 32" width="32" height="32" fill="currentColor">
-              <path fillRule="evenodd" clipRule="evenodd" d="M4.53611 8.89722C4.18945 5.78522 7.39345 3.49989 10.2241 4.84122L26.1494 12.3852C29.2001 13.8292 29.2001 18.1706 26.1494 19.6146L10.2241 27.1599C7.39345 28.5012 4.19078 26.2159 4.53611 23.1039L5.17611 17.3332H16.0001C16.3537 17.3332 16.6929 17.1927 16.9429 16.9427C17.193 16.6926 17.3334 16.3535 17.3334 15.9999C17.3334 15.6463 17.193 15.3071 16.9429 15.0571C16.6929 14.807 16.3537 14.6666 16.0001 14.6666H5.17745L4.53611 8.89722Z" fill="#0066CC"/>
-            </svg>
-          </button>
         </div>
+
+        {/* Property Preview */}
+        <div className="property-preview">
+          <div className="property-preview-content">
+            <div className="property-main-info">
+              <h2 className="property-title">{selectedChat.propertyTitle}</h2>
+              <span className="duration-badge">{selectedChat.duration}</span>
+            </div>
+            <div className="property-location">{selectedChat.location}</div>
+            <div className="property-dates">
+              <span className="date-range">{selectedChat.date}</span>
+              <span className="price-info">
+                <span className="currency">Ksh</span>
+                <span className="amount">{selectedChat.price}</span>
+                <span className="rate">/night</span>
+                <svg className="expand-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M7 10l5 5 5-5z" fill="currentColor"/>
+                </svg>
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Messages Section */}
+        <div className="chat-messages" ref={messagesContainerRef}>
+          {groupedMessages.map((msg, index) => renderMessage(msg, index))}
+        </div>
+        
+        <ChatInput onSendMessage={handleSendMessage} />
       </div>
     );
   };
@@ -300,7 +807,7 @@ const ChatsView = ({ onChatSelect }) => {
           <div className="skeleton-stat"></div>
         </div>
       </div>
-    </div>
+          </div>
   );
 
   if (error) {
@@ -364,13 +871,14 @@ const ChatsView = ({ onChatSelect }) => {
         </div>
 
         <div className="chat-list">
-          {initialLoad ? (
-            // Show skeletons on initial load
+          {initialLoad && (
             Array(4).fill(0).map((_, index) => (
               <SkeletonChat key={`skeleton-${index}`} />
             ))
-          ) : (
-            <>
+          )}
+          
+          {!initialLoad && (
+            <div className="chat-list-content">
               {chats.map((chat, index) => (
             <div 
               key={chat.id} 
@@ -399,22 +907,32 @@ const ChatsView = ({ onChatSelect }) => {
                 </div>
               </div>
               ))}
+              
               {loading && !initialLoad && (
                 <div ref={loadingRef} className="loading-more">
                   <SkeletonChat />
                 </div>
               )}
+              
               {chats.length === 0 && !loading && (
                 <div className="no-chats-message">
                   No chats found.
-            </div>
+                </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>
 
       {selectedChat && renderChatModal()}
+
+      {viewerImages && (
+        <ImageViewer
+          images={viewerImages}
+          initialIndex={viewerInitialIndex}
+          onClose={closeImageViewer}
+        />
+      )}
     </div>
   );
 };

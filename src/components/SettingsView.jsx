@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { authService } from '../services';
+import { useNavigate } from 'react-router-dom';
 import '../styles/SettingsView.css';
 
 const SettingsView = ({ onBack }) => {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('personal');
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -150,6 +152,15 @@ const SettingsView = ({ onBack }) => {
 
   const handleCloseModal = () => {
     setIsMobileModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      navigate('/login');
+    } catch (err) {
+      setError('Failed to logout');
+    }
   };
 
   const renderModalContent = () => {
@@ -418,6 +429,11 @@ const SettingsView = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Mobile Logout Button */}
+      <button className="mobile-logout-button" onClick={handleLogout}>
+        Log out
+      </button>
     </div>
   );
 };

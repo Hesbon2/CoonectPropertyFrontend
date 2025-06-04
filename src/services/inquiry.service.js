@@ -1,6 +1,8 @@
 import api from './api.config';
 import Inquiry from '../models/inquiry.model';
 import cache from '../utils/cache';
+import axios from 'axios';
+import { API_URL } from '../config';
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -29,26 +31,17 @@ const clearCache = () => {
 
 class InquiryService {
   async createInquiry(inquiryData) {
-    const response = await api.post('/inquiries', inquiryData);
+    const response = await api.post('/api/inquiries', inquiryData);
     clearCache(); // Clear cache when creating new inquiry
     return response.data;
   }
 
-  async getInquiries(page = 1, limit = 10) {
+  async getInquiries(queryParams) {
     try {
-      const cacheKey = `inquiries_${page}_${limit}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get(`/inquiries?include=user,engagement&page=${page}&limit=${limit}`);
-      setCache(cacheKey, response.data);
+      const response = await api.get(`/api/inquiries?${queryParams.toString()}`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching inquiries:', error);
-      throw error;
+      throw this.handleError(error);
     }
   }
 
@@ -61,7 +54,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/me?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/me?page=${page}&limit=${limit}`);
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -79,7 +72,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/bookmarked?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/bookmarked?page=${page}&limit=${limit}`);
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -100,9 +93,9 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/${inquiryId}/engagement`);
+      const response = await api.get(`/api/inquiries/${inquiryId}/engagement`);
       setCache(cacheKey, response.data);
-    return response.data;
+      return response.data;
     } catch (error) {
       console.error('Error fetching inquiry stats:', error);
       throw error;
@@ -114,10 +107,10 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/views`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/views`);
       // Clear stats cache for this inquiry
-      cache.delete(`stats_${inquiryId}`);
-    return response.data;
+      await cache.del(`stats_${inquiryId}`);
+      return response.data;
     } catch (error) {
       console.error('Error incrementing view:', error);
       throw error;
@@ -129,10 +122,10 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/like`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/likes`);
       // Clear stats cache for this inquiry
-      cache.delete(`stats_${inquiryId}`);
-    return response.data;
+      await cache.del(`stats_${inquiryId}`);
+      return response.data;
     } catch (error) {
       console.error('Error toggling like:', error);
       throw error;
@@ -144,14 +137,10 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-    const response = await api.post(`/inquiries/${inquiryId}/bookmark`);
-      // Clear bookmarks cache since it's changed
-      cache.forEach((value, key) => {
-        if (key.startsWith('bookmarks_')) {
-          cache.delete(key);
-        }
-      });
-    return response.data;
+      const response = await api.post(`/api/inquiries/${inquiryId}/bookmarks`);
+      // Clear bookmarks cache since it will change
+      clearCache();
+      return response.data;
     } catch (error) {
       console.error('Error toggling bookmark:', error);
       throw error;
@@ -163,122 +152,186 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/messages`, { message });
-    return response.data;
+      const response = await api.post(`/api/inquiries/${inquiryId}/messages`, { message });
+      return response.data;
     } catch (error) {
       console.error('Error sending inquiry message:', error);
       throw error;
     }
   }
 
-  async updateInquiry(id, updates) {
-    const result = await Inquiry
-      .findByIdAndUpdate(
-        id,
-        { $set: updates },
-        { 
-          new: true,
-          projection: {
-            houseType: 1,
-            location: 1,
-            budget: 1,
-            description: 1,
-            'engagement.likes': 1
-          }
-        }
-      )
-      .lean();
-
-    // Invalidate related caches
-    await cache.del(`inquiry_${id}`);
-    await cache.del('myInquiries_*');
-    
-    return result;
+  async updateInquiry(inquiryId, updateData) {
+    if (!inquiryId) {
+      throw new Error('Inquiry ID is required');
+    }
+    try {
+      const response = await api.put(`/api/inquiries/${inquiryId}`, updateData);
+      // Clear all caches since lists might change
+      clearCache();
+      return response.data;
+    } catch (error) {
+      console.error('Error updating inquiry:', error);
+      throw error;
+    }
   }
 
   async deleteInquiry(inquiryId) {
-    const response = await api.delete(`/inquiries/${inquiryId}`);
-    // Clear all caches since lists will change
-    clearCache();
-    return response.data;
+    try {
+      const response = await api.delete(`/api/inquiries/${inquiryId}`);
+      // Clear all caches since lists will change
+      clearCache();
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting inquiry:', error);
+      throw error;
+    }
   }
 
   // Helper method to format filters for the API
   formatFilters(filters) {
     const {
-      location,
       requesterType,
-      minNights,
-      maxNights,
-      minBudget,
-      maxBudget,
-      status,
+      houseType,
+      unitSize,
+      county,
+      ward,
+      budget,
+      checkInDate,
+      checkOutDate,
+      specialRequirements,
+      description
     } = filters;
 
     const formattedFilters = {};
 
-    if (location) formattedFilters.location = location;
-    if (requesterType) formattedFilters.requesterType = requesterType;
-    if (minNights) formattedFilters.minNights = minNights;
-    if (maxNights) formattedFilters.maxNights = maxNights;
-    if (minBudget) formattedFilters.minBudget = minBudget;
-    if (maxBudget) formattedFilters.maxBudget = maxBudget;
-    if (status) formattedFilters.status = status;
+    if (requesterType) {
+      formattedFilters.requesterType = requesterType;
+    }
+
+    if (houseType) {
+      formattedFilters.houseType = houseType;
+    }
+
+    if (unitSize) {
+      formattedFilters.unitSize = unitSize;
+    }
+
+    if (county) {
+      formattedFilters.county = county;
+    }
+
+    if (ward) {
+      formattedFilters.ward = ward;
+    }
+
+    if (budget) {
+      formattedFilters.budget = {
+        $lte: parseFloat(budget)
+      };
+    }
+
+    if (checkInDate) {
+      formattedFilters.checkInDate = {
+        $gte: new Date(checkInDate)
+      };
+    }
+
+    if (checkOutDate) {
+      formattedFilters.checkOutDate = {
+        $lte: new Date(checkOutDate)
+      };
+    }
+
+    if (specialRequirements) {
+      formattedFilters.specialRequirements = {
+        $regex: specialRequirements,
+        $options: 'i'
+      };
+    }
+
+    if (description) {
+      formattedFilters.description = {
+        $regex: description,
+        $options: 'i'
+      };
+    }
 
     return formattedFilters;
   }
 
   async searchInquiries(filters) {
-    const cacheKey = `search_${JSON.stringify(filters)}`;
-    const cachedResult = await cache.get(cacheKey);
+    try {
+      const formattedFilters = this.formatFilters(filters);
+      const cacheKey = `search_${JSON.stringify(formattedFilters)}`;
+      const cachedData = getFromCache(cacheKey);
+      
+      if (cachedData) {
+        return cachedData;
+      }
 
-    if (cachedResult) {
-      return cachedResult;
+      const response = await api.get('/api/inquiries/search', { params: formattedFilters });
+      setCache(cacheKey, response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error searching inquiries:', error);
+      throw error;
     }
-
-    const query = this.buildSearchQuery(filters);
-    const projection = {
-      houseType: 1,
-      location: 1,
-      budget: 1,
-      checkInDate: 1,
-      checkOutDate: 1,
-      'engagement.likes': 1
-    };
-
-    const inquiries = await Inquiry
-      .find(query)
-      .select(projection)
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean()
-      .exec();
-
-    await cache.set(cacheKey, inquiries, 300);
-    return inquiries;
   }
 
   buildSearchQuery(filters) {
     const query = {};
-    
-    if (filters.location) {
-      query.location = { $regex: new RegExp(filters.location, 'i') };
+
+    if (filters.requesterType) {
+      query.requesterType = filters.requesterType;
     }
-    
+
+    if (filters.county) {
+      query.county = filters.county;
+    }
+
+    if (filters.ward) {
+      query.ward = filters.ward;
+    }
+
     if (filters.houseType) {
       query.houseType = filters.houseType;
     }
-    
-    if (filters.budget) {
-      query.budget = { $lte: filters.budget };
+
+    if (filters.unitSize) {
+      query.unitSize = filters.unitSize;
     }
-    
-    if (filters.dateRange) {
-      query.checkInDate = { $gte: filters.dateRange.start };
-      query.checkOutDate = { $lte: filters.dateRange.end };
+
+    if (filters.budget) {
+      query.budget = { $lte: parseFloat(filters.budget) };
+    }
+
+    if (filters.checkInDate) {
+      query.checkInDate = { $gte: new Date(filters.checkInDate) };
+    }
+
+    if (filters.checkOutDate) {
+      query.checkOutDate = { $lte: new Date(filters.checkOutDate) };
+    }
+
+    if (filters.specialRequirements) {
+      query.specialRequirements = { $regex: filters.specialRequirements, $options: 'i' };
     }
 
     return query;
+  }
+
+  handleError(error) {
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      return error.response.data;
+    } else if (error.request) {
+      // The request was made but no response was received
+      return { message: 'No response received from server' };
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      return { message: error.message };
+    }
   }
 }
 

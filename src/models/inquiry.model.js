@@ -6,6 +6,11 @@ const inquirySchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  requesterType: {
+    type: String,
+    enum: ['tenant', 'agent', 'landlord'],
+    required: true
+  },
   houseType: {
     type: String,
     required: true
@@ -14,7 +19,11 @@ const inquirySchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  location: {
+  county: {
+    type: String,
+    required: true
+  },
+  ward: {
     type: String,
     required: true
   },
@@ -29,6 +38,10 @@ const inquirySchema = new mongoose.Schema({
   checkOutDate: {
     type: Date,
     required: true
+  },
+  specialRequirements: {
+    type: String,
+    required: false
   },
   description: {
     type: String,
@@ -67,21 +80,29 @@ const inquirySchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Virtual for full location
+inquirySchema.virtual('location').get(function() {
+  return `${this.ward}, ${this.county}`;
+});
+
 // Compound index for filtering and sorting
 inquirySchema.index({ userId: 1, createdAt: -1 });
-inquirySchema.index({ location: 1, houseType: 1, budget: 1 });
+inquirySchema.index({ county: 1, ward: 1, houseType: 1, budget: 1 });
 
 // Text index for search
 inquirySchema.index({ 
   description: 'text', 
-  location: 'text', 
-  houseType: 'text' 
+  county: 'text',
+  ward: 'text',
+  houseType: 'text',
+  specialRequirements: 'text'
 });
 
 // Index for frequently accessed fields
 inquirySchema.index({ status: 1 });
 inquirySchema.index({ 'engagement.likes': -1 });
 inquirySchema.index({ 'engagement.views': -1 });
+inquirySchema.index({ requesterType: 1 });
 
 const Inquiry = mongoose.model('Inquiry', inquirySchema);
 

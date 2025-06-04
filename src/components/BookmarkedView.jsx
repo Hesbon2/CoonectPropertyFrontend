@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import inquiryService from '../services/inquiry.service';
+import authService from '../services/auth.service';
+import socketService from '../services/socket.service';
 import '../styles/BookmarkedView.css';
+import { getInitialsAvatar } from '../utils/avatarUtils';
 
 const ITEMS_PER_PAGE = 10;
 
-const BookmarkedView = ({ onSettingsClick }) => {
+const BookmarkedView = ({ onSettingsClick, setActiveView }) => {
   const [locationFilter, setLocationFilter] = useState('');
   const [durationFilter, setDurationFilter] = useState('All Duration');
   const [budgetFilter, setBudgetFilter] = useState('All Duration');
@@ -32,6 +35,25 @@ const BookmarkedView = ({ onSettingsClick }) => {
 
   useEffect(() => {
     fetchBookmarks(true);
+
+    // Setup socket listeners for real-time updates
+    const socket = socketService.connect();
+
+    socket.on('inquiry_updated', handleInquiryUpdated);
+    socket.on('inquiry_deleted', handleInquiryDeleted);
+    socket.on('engagement_updated', handleEngagementUpdated);
+    socket.on('bookmark_updated', handleBookmarkUpdated);
+    socket.on('like_updated', handleLikeUpdated);
+    socket.on('user_status_changed', handleUserStatusChanged);
+
+    return () => {
+      socket.off('inquiry_updated', handleInquiryUpdated);
+      socket.off('inquiry_deleted', handleInquiryDeleted);
+      socket.off('engagement_updated', handleEngagementUpdated);
+      socket.off('bookmark_updated', handleBookmarkUpdated);
+      socket.off('like_updated', handleLikeUpdated);
+      socket.off('user_status_changed', handleUserStatusChanged);
+    };
   }, []);
 
   const fetchBookmarks = async (isInitialFetch = false) => {
@@ -42,39 +64,151 @@ const BookmarkedView = ({ onSettingsClick }) => {
       }
       
       const data = await inquiryService.getBookmarkedInquiries(page, ITEMS_PER_PAGE);
+      const currentUser = authService.getCurrentUser();
       
       // Transform the data to match our display format
-      const formattedBookmarks = data.map(inquiry => ({
-        id: inquiry._id,
-        avatar: inquiry.user?.profilePicture || "https://cdn.builder.io/api/v1/image/assets/TEMP/425a2991fdc5d493a84ad80fceedaf9b2e8e8548",
-        userName: `${inquiry.user?.firstName || ''} ${inquiry.user?.lastName || ''}`.trim() || 'Anonymous',
-        userType: inquiry.user?.userType || "Customer",
-        propertyTitle: `${inquiry.houseType || ''} ${inquiry.unitSize || ''}`.trim() || 'Property',
-        location: inquiry.location || 'Location not specified',
-        date: inquiry.checkInDate && inquiry.checkOutDate ? 
-          `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}` : '',
-        price: inquiry.budget?.toLocaleString() || '0',
-        duration: inquiry.checkInDate && inquiry.checkOutDate ? 
-          `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights` : '',
-        description: inquiry.description || '',
+      const formattedBookmarks = data.map(inquiry => {
+        const firstName = inquiry.user?.firstName || '';
+        const lastName = inquiry.user?.lastName || '';
+        
+        return {
+          id: inquiry._id,
+          avatar: getInitialsAvatar(firstName, lastName),
+          userName: firstName && lastName ? 
+            `${firstName} ${lastName}` : 'Anonymous User',
+          userType: inquiry.user?.userType || "Customer",
+          propertyTitle: `${inquiry.houseType || ''} ${inquiry.unitSize || ''}`.trim() || 'Property',
+          location: inquiry.location || 'Location not specified',
+          date: inquiry.checkInDate && inquiry.checkOutDate ? 
+            `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}` : '',
+          price: inquiry.budget?.toLocaleString() || '0',
+          duration: inquiry.checkInDate && inquiry.checkOutDate ? 
+            `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights` : '',
+          description: inquiry.description || '',
       stats: {
-          inquiries: inquiry.engagement?.inquiries?.toString() || '0',
-          likes: inquiry.engagement?.likes?.toString() || '0',
-          views: inquiry.engagement?.views?.toString() || '0'
-        },
-        postedTime: getTimeAgo(new Date(inquiry.createdAt))
-      }));
+            inquiries: inquiry.engagement?.inquiries?.toString() || '0',
+            likes: inquiry.engagement?.likes?.toString() || '0',
+            views: inquiry.engagement?.views?.toString() || '0',
+            isLiked: Array.isArray(inquiry.likes) && inquiry.likes.includes(currentUser?._id),
+            isBookmarked: true
+      },
+          postedTime: getTimeAgo(new Date(inquiry.createdAt))
+        };
+      });
 
       setBookmarks(prev => isInitialFetch ? formattedBookmarks : [...prev, ...formattedBookmarks]);
       setHasMore(formattedBookmarks.length === ITEMS_PER_PAGE);
       setError(null);
       setInitialLoad(false);
+      setLoading(false);
     } catch (err) {
       console.error('Error fetching bookmarks:', err);
       setError('Failed to load bookmarks. Please try again.');
-    } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
+  };
+
+  // Real-time update handlers
+  const handleInquiryUpdated = (updatedInquiry) => {
+    setBookmarks(prev => prev.map(bookmark => 
+      bookmark.id === updatedInquiry._id ? formatBookmark(updatedInquiry) : bookmark
+    ));
+  };
+
+  const handleInquiryDeleted = (inquiryId) => {
+    setBookmarks(prev => prev.filter(bookmark => bookmark.id !== inquiryId));
+  };
+
+  const handleEngagementUpdated = ({ inquiryId, engagement }) => {
+    setBookmarks(prev => prev.map(bookmark => {
+      if (bookmark.id === inquiryId) {
+        return {
+          ...bookmark,
+          stats: {
+            ...bookmark.stats,
+            inquiries: engagement.inquiries.toString(),
+            views: engagement.views.toString(),
+            likes: engagement.likes.toString()
+          }
+        };
+      }
+      return bookmark;
+    }));
+  };
+
+  const handleBookmarkUpdated = ({ inquiryId, isBookmarked }) => {
+    if (!isBookmarked) {
+      // Remove from bookmarks if unbookmarked
+      setBookmarks(prev => prev.filter(bookmark => bookmark.id !== inquiryId));
+    }
+  };
+
+  const handleLikeUpdated = ({ inquiryId, isLiked, likesCount }) => {
+    setBookmarks(prev => prev.map(bookmark => {
+      if (bookmark.id === inquiryId) {
+        return {
+          ...bookmark,
+          stats: {
+            ...bookmark.stats,
+            isLiked,
+            likes: likesCount.toString()
+          }
+        };
+      }
+      return bookmark;
+    }));
+  };
+
+  const handleUserStatusChanged = ({ userId, isOnline, lastSeen }) => {
+    setBookmarks(prev => prev.map(bookmark => {
+      if (bookmark.userId === userId) {
+        return {
+          ...bookmark,
+          userStatus: {
+            isOnline,
+            lastSeen
+          }
+        };
+      }
+      return bookmark;
+    }));
+  };
+
+  // Helper function to format bookmark data
+  const formatBookmark = (inquiry) => {
+    const firstName = inquiry.user?.firstName || '';
+    const lastName = inquiry.user?.lastName || '';
+    const currentUser = authService.getCurrentUser();
+
+    return {
+      id: inquiry._id,
+      userId: inquiry.user?._id,
+      avatar: getInitialsAvatar(firstName, lastName),
+      userName: firstName && lastName ? 
+        `${firstName} ${lastName}` : 'Anonymous User',
+      userType: inquiry.user?.userType || "Customer",
+      propertyTitle: `${inquiry.houseType || ''} ${inquiry.unitSize || ''}`.trim() || 'Property',
+      location: inquiry.location || 'Location not specified',
+      date: inquiry.checkInDate && inquiry.checkOutDate ? 
+        `${new Date(inquiry.checkInDate).toLocaleDateString()} - ${new Date(inquiry.checkOutDate).toLocaleDateString()}` : '',
+      price: inquiry.budget?.toLocaleString() || '0',
+      duration: inquiry.checkInDate && inquiry.checkOutDate ? 
+        `${Math.ceil((new Date(inquiry.checkOutDate) - new Date(inquiry.checkInDate)) / (1000 * 60 * 60 * 24))} nights` : '',
+      description: inquiry.description || '',
+      stats: {
+        inquiries: inquiry.engagement?.inquiries?.toString() || '0',
+        likes: inquiry.engagement?.likes?.toString() || '0',
+        views: inquiry.engagement?.views?.toString() || '0',
+        isLiked: Array.isArray(inquiry.likes) && inquiry.likes.includes(currentUser?._id),
+        isBookmarked: true
+      },
+      userStatus: {
+        isOnline: inquiry.user?.isOnline || false,
+        lastSeen: inquiry.user?.lastSeen
+      },
+      postedTime: getTimeAgo(new Date(inquiry.createdAt))
+    };
   };
 
   const getTimeAgo = (date) => {
@@ -297,11 +431,34 @@ const BookmarkedView = ({ onSettingsClick }) => {
       </div>
 
       <div className="bookmarked-list">
-        {initialLoad ? (
-          // Show skeletons on initial load
+        {initialLoad && loading ? (
+          // Show skeletons only during initial load
           Array(4).fill(0).map((_, index) => (
             <SkeletonCard key={`skeleton-${index}`} />
           ))
+        ) : bookmarks.length === 0 && !loading ? (
+          // Show no bookmarks message when there are no bookmarks and not loading
+          <div className="no-bookmarks-message">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" style={{ opacity: 0.5 }}>
+              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/>
+            </svg>
+            <p>No bookmarked inquiries yet</p>
+            <button 
+              className="browse-button" 
+              onClick={() => setActiveView('enquirers')}
+              style={{
+                padding: '8px 16px',
+                background: '#0066CC',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                marginTop: '16px'
+              }}
+            >
+              Browse Inquiries
+            </button>
+          </div>
         ) : (
           <>
             {bookmarks.map((bookmark, index) => (
@@ -311,8 +468,8 @@ const BookmarkedView = ({ onSettingsClick }) => {
               >
                 <BookmarkCard bookmark={bookmark} />
               </div>
-            ))}
-            {loading && (
+        ))}
+            {loading && !initialLoad && (
               <div ref={loadingRef} className="loading-more">
                 <SkeletonCard />
               </div>

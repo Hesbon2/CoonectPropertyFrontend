@@ -11,7 +11,7 @@ class Cache {
     }
   }
 
-  async get(key) {
+  get(key) {
     try {
       const item = this.cache.get(key);
       if (!item) return null;
@@ -28,7 +28,7 @@ class Cache {
     }
   }
 
-  async set(key, value, ttlSeconds = 300) {
+  set(key, value, ttlSeconds = 300) {
     try {
       this.cache.set(key, {
         value,
@@ -39,7 +39,7 @@ class Cache {
     }
   }
 
-  async del(pattern) {
+  del(pattern) {
     try {
       if (pattern.includes('*')) {
         // Handle pattern deletion
@@ -57,12 +57,37 @@ class Cache {
     }
   }
 
-  async clearAll() {
+  delete(key) {
+    try {
+      this.cache.delete(key);
+    } catch (error) {
+      console.error('Cache delete error:', error);
+    }
+  }
+
+  clear() {
     try {
       this.cache.clear();
     } catch (error) {
       console.error('Cache clear error:', error);
     }
+  }
+
+  // Maintain async methods for backward compatibility
+  async asyncGet(key) {
+    return Promise.resolve(this.get(key));
+  }
+
+  async asyncSet(key, value, ttlSeconds = 300) {
+    return Promise.resolve(this.set(key, value, ttlSeconds));
+  }
+
+  async asyncDel(pattern) {
+    return Promise.resolve(this.del(pattern));
+  }
+
+  async asyncClear() {
+    return Promise.resolve(this.clear());
   }
 }
 
