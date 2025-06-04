@@ -7,7 +7,7 @@ class AuthService {
   }
 
   async login(email, password) {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post('/api/auth/login', { email, password });
     if (response.data.token) {
       localStorage.setItem(this.tokenKey, response.data.token);
       localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
@@ -16,7 +16,7 @@ class AuthService {
   }
 
   async register(userData) {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/api/auth/register', userData);
     if (response.data.token) {
       localStorage.setItem(this.tokenKey, response.data.token);
       localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
@@ -39,7 +39,7 @@ class AuthService {
   }
 
   async updatePassword(currentPassword, newPassword) {
-    const response = await api.put('/auth/password', {
+    const response = await api.put('/api/auth/password', {
       currentPassword,
       newPassword,
     });
@@ -47,7 +47,7 @@ class AuthService {
   }
 
   async updateProfile(profileData) {
-    const response = await api.put('/auth/profile', profileData);
+    const response = await api.put('/api/auth/profile', profileData);
     // Update stored user data
     if (response.data) {
       localStorage.setItem(this.userKey, JSON.stringify(response.data));
@@ -58,7 +58,7 @@ class AuthService {
   async uploadProfilePicture(file) {
     const formData = new FormData();
     formData.append('profilePicture', file);
-    const response = await api.put('/auth/profile-picture', formData, {
+    const response = await api.put('/api/auth/profile-picture', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -71,12 +71,12 @@ class AuthService {
   }
 
   async deleteAccount() {
-    await api.delete('/auth/account');
+    await api.delete('/api/auth/account');
     this.logout();
   }
 
   async getProfile() {
-    const response = await api.get('/auth/me');
+    const response = await api.get('/api/auth/me');
     return response.data;
   }
 

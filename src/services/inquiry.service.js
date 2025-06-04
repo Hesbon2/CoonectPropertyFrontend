@@ -31,14 +31,14 @@ const clearCache = () => {
 
 class InquiryService {
   async createInquiry(inquiryData) {
-    const response = await api.post('/inquiries', inquiryData);
+    const response = await api.post('/api/inquiries', inquiryData);
     clearCache(); // Clear cache when creating new inquiry
     return response.data;
   }
 
   async getInquiries(queryParams) {
     try {
-      const response = await api.get(`/inquiries?${queryParams.toString()}`);
+      const response = await api.get(`/api/inquiries?${queryParams.toString()}`);
       return response.data;
     } catch (error) {
       throw this.handleError(error);
@@ -54,7 +54,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/me?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/me?page=${page}&limit=${limit}`);
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -72,7 +72,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/bookmarked?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/bookmarked?page=${page}&limit=${limit}`);
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -93,7 +93,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/${inquiryId}/engagement`);
+      const response = await api.get(`/api/inquiries/${inquiryId}/engagement`);
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -107,7 +107,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/views`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/views`);
       // Clear stats cache for this inquiry
       await cache.del(`stats_${inquiryId}`);
       return response.data;
@@ -122,7 +122,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/likes`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/likes`);
       // Clear stats cache for this inquiry
       await cache.del(`stats_${inquiryId}`);
       return response.data;
@@ -137,7 +137,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/bookmarks`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/bookmarks`);
       // Clear bookmarks cache since it will change
       clearCache();
       return response.data;
@@ -152,7 +152,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/messages`, { message });
+      const response = await api.post(`/api/inquiries/${inquiryId}/messages`, { message });
       return response.data;
     } catch (error) {
       console.error('Error sending inquiry message:', error);
@@ -165,7 +165,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.put(`/inquiries/${inquiryId}`, updateData);
+      const response = await api.put(`/api/inquiries/${inquiryId}`, updateData);
       // Clear all caches since lists might change
       clearCache();
       return response.data;
@@ -177,7 +177,7 @@ class InquiryService {
 
   async deleteInquiry(inquiryId) {
     try {
-      const response = await api.delete(`/inquiries/${inquiryId}`);
+      const response = await api.delete(`/api/inquiries/${inquiryId}`);
       // Clear all caches since lists will change
       clearCache();
       return response.data;
@@ -269,7 +269,7 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get('/inquiries/search', { params: formattedFilters });
+      const response = await api.get('/api/inquiries/search', { params: formattedFilters });
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {

@@ -3,12 +3,12 @@ import { uploadImage } from '../config/cloudinary';
 
 class ChatService {
   async createOrGetChat(inquiryId) {
-    const response = await api.post('/chats', { inquiryId });
+    const response = await api.post('/api/chats', { inquiryId });
     return response.data;
   }
 
   async getMyChats() {
-    const response = await api.get('/chats');
+    const response = await api.get('/api/chats');
     return response.data;
   }
 
@@ -29,7 +29,7 @@ class ChatService {
         console.log('Image uploaded successfully:', { url, publicId });
 
         // Send message with Cloudinary URL
-        response = await api.post(`/chats/${chatId}/messages`, {
+        response = await api.post(`/api/chats/${chatId}/messages`, {
           content: messageData.content || messageData.file.name,
           messageType: 'image',
           images: [url],
@@ -46,7 +46,7 @@ class ChatService {
       }
     } else {
       // Handle text message
-      response = await api.post(`/chats/${chatId}/messages`, {
+      response = await api.post(`/api/chats/${chatId}/messages`, {
         content: messageData.content,
         messageType: messageData.type || 'text'
       });
@@ -56,12 +56,12 @@ class ChatService {
   }
 
   async markAsRead(chatId) {
-    const response = await api.put(`/chats/${chatId}/read`);
+    const response = await api.put(`/api/chats/${chatId}/read`);
     return response.data;
   }
 
   async archiveChat(chatId) {
-    const response = await api.put(`/chats/${chatId}/archive`);
+    const response = await api.put(`/api/chats/${chatId}/archive`);
     return response.data;
   }
 
