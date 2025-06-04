@@ -13,7 +13,7 @@ class StatsService {
         return cachedData.data;
       }
 
-      const response = await api.get('/api/stats');
+      const response = await api.get('/stats');
       
       cache.set(cacheKey, {
         data: response.data,
