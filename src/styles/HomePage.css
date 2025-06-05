@@ -1,8 +1,9 @@
 .business-connect {
   background-color: #F7F7F7;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .header {
@@ -189,22 +190,23 @@
 
 .main-content {
   flex: 1;
-  padding: 24px;
   background: #FFFFFF;
   border-radius: 16px;
   width: 100%;
   min-width: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: calc(100vh - 128px);
 }
 
 .filters-section {
   padding: 16px;
   background: #FFFFFF;
   border-bottom: 1px solid #EEEEEE;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .filters-container {
@@ -348,6 +350,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  height: calc(100vh - 250px); /* Adjust based on header + filters height */
 }
 
 .listings-grid {
@@ -787,6 +790,34 @@
 }
 
 @media (max-width: 991px) {
+  .business-connect {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .main-layout {
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .main-content {
+    height: 100vh;
+    padding-bottom: 60px; /* Account for mobile bottom nav */
+  }
+
+  .listings-section {
+    height: calc(100vh - 180px); /* Adjust for mobile header + filters */
+    overflow-y: auto;
+  }
+
+  .filters-section {
+    position: sticky;
+    top: 0;
+    z-index: 998;
+    background: #FFFFFF;
+  }
+
   .header {
     display: none;
   }
@@ -896,10 +927,6 @@
 
   .location-selector-label {
     display: none;
-  }
-
-  .listings-section {
-    overflow-y: visible;
   }
 
   .listings-grid {
