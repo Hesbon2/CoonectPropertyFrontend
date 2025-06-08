@@ -7,7 +7,7 @@ class AuthService {
   }
 
   async login(email, password) {
-    const response = await api.post('/api/auth/login', { email, password });
+    const response = await api.post('/auth/login', { email, password });
     if (response.data.token) {
       localStorage.setItem(this.tokenKey, response.data.token);
       localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
@@ -16,7 +16,7 @@ class AuthService {
   }
 
   async register(userData) {
-    const response = await api.post('/api/auth/register', userData);
+    const response = await api.post('/auth/register', userData);
     if (response.data.token) {
       localStorage.setItem(this.tokenKey, response.data.token);
       localStorage.setItem(this.userKey, JSON.stringify(response.data.user));
@@ -45,7 +45,7 @@ class AuthService {
   }
 
   async updateProfile(userData) {
-    const response = await api.put('/api/auth/profile', userData);
+    const response = await api.put('/auth/profile', userData);
     if (response.data) {
       const currentUser = this.getCurrentUser();
       const updatedUser = { ...currentUser, ...response.data };
@@ -55,12 +55,12 @@ class AuthService {
   }
 
   async updatePassword(passwordData) {
-    const response = await api.put('/api/auth/password', passwordData);
+    const response = await api.put('/auth/password', passwordData);
     return response.data;
   }
 
   async uploadProfilePicture(formData) {
-    const response = await api.post('/api/auth/profile-picture', formData, {
+    const response = await api.post('/auth/profile-picture', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -74,12 +74,12 @@ class AuthService {
   }
 
   async deleteAccount() {
-    await api.delete('/api/auth/account');
+    await api.delete('/auth/account');
     this.logout();
   }
 
   async getProfile() {
-    const response = await api.get('/api/auth/me');
+    const response = await api.get('/auth/me');
     return response.data;
   }
 
