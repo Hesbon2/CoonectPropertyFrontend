@@ -672,7 +672,7 @@ function HomePage() {
         });
       }
 
-      await inquiryService.toggleLike(inquiryId);
+      await inquiryService.toggleInquiryLike(inquiryId);
       
       // Refetch inquiries if we're in the favorites tab
       if (activeTab === 'favorites') {
@@ -750,7 +750,7 @@ function HomePage() {
 
   const handleViewIncrement = async (inquiryId) => {
     try {
-      await inquiryService.incrementView(inquiryId);
+      await inquiryService.addInquiryView(inquiryId);
       
       // Update views count locally
       setInquiries(prevInquiries => 
