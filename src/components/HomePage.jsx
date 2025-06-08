@@ -515,7 +515,7 @@ function HomePage() {
       console.log('Full inquiry:', fullInquiry);
 
       // Mark the inquiry as read
-      const readResponse = await inquiryService.markAsRead(inquiry.id);
+      const readResponse = await inquiryService.markInquiryAsRead(inquiry.id);
       console.log('Mark as read response:', readResponse);
       
       // Update local state to reflect the read status
