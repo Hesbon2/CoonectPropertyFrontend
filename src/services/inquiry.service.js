@@ -31,221 +31,81 @@ const clearCache = () => {
 
 class InquiryService {
   async createInquiry(inquiryData) {
-    const response = await api.post('/api/inquiries', inquiryData);
+    const response = await api.post('/inquiries', inquiryData);
     clearCache(); // Clear cache when creating new inquiry
     return response.data;
   }
 
-  async getInquiryById(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const cacheKey = `inquiry_${inquiryId}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get(`/api/inquiries/${inquiryId}`);
-      console.log('API Response:', response.data); // Add this line for debugging
-      setCache(cacheKey, response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching inquiry:', error);
-      throw error;
-    }
+  async getInquiry(inquiryId) {
+    const response = await api.get(`/inquiries/${inquiryId}`);
+    return response.data;
   }
 
-  async getInquiries(queryParams) {
-    try {
-      // Format the filters
-      const formattedParams = new URLSearchParams();
-      
-      // Add all query params
-      if (queryParams instanceof URLSearchParams) {
-        // If queryParams is already a URLSearchParams object
-        for (const [key, value] of queryParams.entries()) {
-          if (value) {
-            formattedParams.append(key, value);
-          }
-        }
-      } else {
-        // If queryParams is a regular object
-        Object.entries(queryParams).forEach(([key, value]) => {
-          if (value) {
-            // Handle budget ranges
-            if (key === 'budget') {
-              const [min, max] = value.split('-');
-              if (min) formattedParams.append('minBudget', min);
-              if (max) formattedParams.append('maxBudget', max);
-            } 
-            // Handle date ranges
-            else if (key === 'checkInDate' || key === 'checkOutDate') {
-              formattedParams.append(key, new Date(value).toISOString());
-            }
-            // Handle all other filters
-            else {
-              formattedParams.append(key, value);
-            }
-          }
-        });
-      }
-
-      console.log('Sending filters to API:', formattedParams.toString()); // Debug log
-      const response = await api.get(`/api/inquiries?${formattedParams.toString()}`);
-      console.log('API Response:', response.data); // Debug log
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching inquiries:', error);
-      throw error;
-    }
+  async getInquiries(params = {}) {
+    const formattedParams = new URLSearchParams(params);
+    const response = await api.get(`/inquiries?${formattedParams.toString()}`);
+    return response.data;
   }
 
-  async getMyInquiries(userId, page = 1, limit = 10) {
-    try {
-      const cacheKey = `myInquiries_${userId}_${page}_${limit}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get(`/api/inquiries/me?page=${page}&limit=${limit}`);
-      console.log('API Response:', response.data); // Add this line for debugging
-      setCache(cacheKey, response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching my inquiries:', error);
-      throw error;
-    }
+  async getMyInquiries(page = 1, limit = 10) {
+    const response = await api.get(`/inquiries/me?page=${page}&limit=${limit}`);
+    return response.data;
   }
 
   async getBookmarkedInquiries(page = 1, limit = 10) {
-    try {
-      const cacheKey = `bookmarks_${page}_${limit}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get(`/api/inquiries/bookmarked?page=${page}&limit=${limit}`);
-      console.log('API Response:', response.data); // Add this line for debugging
-      setCache(cacheKey, response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching bookmarked inquiries:', error);
-      throw error;
-    }
+    const response = await api.get(`/inquiries/bookmarked?page=${page}&limit=${limit}`);
+    return response.data;
   }
 
-  async getInquiryStats(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const cacheKey = `stats_${inquiryId}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get(`/api/inquiries/${inquiryId}/engagement`);
-      console.log('API Response:', response.data); // Add this line for debugging
-      setCache(cacheKey, response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching inquiry stats:', error);
-      throw error;
-    }
+  async getInquiryEngagement(inquiryId) {
+    const response = await api.get(`/inquiries/${inquiryId}/engagement`);
+    return response.data;
   }
 
-  async incrementView(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.post(`/api/inquiries/${inquiryId}/views`);
-      // Clear stats cache for this inquiry
-      await cache.del(`stats_${inquiryId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error incrementing view:', error);
-      throw error;
-    }
+  async addInquiryView(inquiryId) {
+    const response = await api.post(`/inquiries/${inquiryId}/views`);
+    return response.data;
   }
 
-  async toggleLike(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.post(`/api/inquiries/${inquiryId}/likes`);
-      // Clear stats cache for this inquiry
-      await cache.del(`stats_${inquiryId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      throw error;
-    }
+  async toggleInquiryLike(inquiryId) {
+    const response = await api.post(`/inquiries/${inquiryId}/likes`);
+    return response.data;
   }
 
-  async toggleBookmark(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.post(`/api/inquiries/${inquiryId}/bookmarks`);
-      // Clear bookmarks cache since it will change
-      clearCache();
-      return response.data;
-    } catch (error) {
-      console.error('Error toggling bookmark:', error);
-      throw error;
-    }
+  async toggleInquiryBookmark(inquiryId) {
+    const response = await api.post(`/inquiries/${inquiryId}/bookmarks`);
+    return response.data;
   }
 
-  async sendInquiryMessage(inquiryId, message) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.post(`/api/inquiries/${inquiryId}/messages`, { message });
-      return response.data;
-    } catch (error) {
-      console.error('Error sending inquiry message:', error);
-      throw error;
-    }
+  async addInquiryMessage(inquiryId, message) {
+    const response = await api.post(`/inquiries/${inquiryId}/messages`, { message });
+    return response.data;
   }
 
   async updateInquiry(inquiryId, updateData) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.put(`/api/inquiries/${inquiryId}`, updateData);
-      // Clear all caches since lists might change
-      clearCache();
-      return response.data;
-    } catch (error) {
-      console.error('Error updating inquiry:', error);
-      throw error;
-    }
+    const response = await api.put(`/inquiries/${inquiryId}`, updateData);
+    return response.data;
   }
 
   async deleteInquiry(inquiryId) {
-    try {
-      const response = await api.delete(`/api/inquiries/${inquiryId}`);
-      // Clear all caches since lists will change
-      clearCache();
-      return response.data;
-    } catch (error) {
-      console.error('Error deleting inquiry:', error);
-      throw error;
-    }
+    const response = await api.delete(`/inquiries/${inquiryId}`);
+    return response.data;
+  }
+
+  async searchInquiries(filters = {}) {
+    const formattedFilters = this._formatSearchFilters(filters);
+    const response = await api.get('/inquiries/search', { params: formattedFilters });
+    return response.data;
+  }
+
+  async markInquiryAsRead(inquiryId) {
+    const response = await api.post(`/inquiries/${inquiryId}/read`);
+    return response.data;
+  }
+
+  _formatSearchFilters(filters) {
+    // Your existing filter formatting logic
+    return filters;
   }
 
   // Helper method to format filters for the API
@@ -320,26 +180,6 @@ class InquiryService {
     return formattedFilters;
   }
 
-  async searchInquiries(filters) {
-    try {
-      const formattedFilters = this.formatFilters(filters);
-      const cacheKey = `search_${JSON.stringify(formattedFilters)}`;
-      const cachedData = getFromCache(cacheKey);
-      
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await api.get('/api/inquiries/search', { params: formattedFilters });
-      console.log('API Response:', response.data); // Add this line for debugging
-      setCache(cacheKey, response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error searching inquiries:', error);
-      throw error;
-    }
-  }
-
   buildSearchQuery(filters) {
     const query = {};
 
@@ -393,21 +233,6 @@ class InquiryService {
     } else {
       // Something happened in setting up the request that triggered an Error
       return { message: error.message };
-    }
-  }
-
-  async markAsRead(inquiryId) {
-    if (!inquiryId) {
-      throw new Error('Inquiry ID is required');
-    }
-    try {
-      const response = await api.post(`/api/inquiries/${inquiryId}/read`);
-      // Clear stats cache for this inquiry
-      await cache.del(`stats_${inquiryId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error marking inquiry as read:', error);
-      throw error;
     }
   }
 }

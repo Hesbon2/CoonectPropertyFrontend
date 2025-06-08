@@ -13,7 +13,7 @@ class StatsService {
         return cachedData.data;
       }
 
-      const response = await api.get('/api/stats');
+      const response = await api.get('/stats');
       
       cache.set(cacheKey, {
         data: response.data,
@@ -25,6 +25,11 @@ class StatsService {
       console.error('Error fetching overall stats:', error);
       throw error;
     }
+  }
+
+  async getStats() {
+    const response = await api.get('/stats');
+    return response.data;
   }
 }
 
