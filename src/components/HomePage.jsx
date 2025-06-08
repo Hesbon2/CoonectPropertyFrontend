@@ -511,7 +511,7 @@ function HomePage() {
 
     try {
       // Fetch the full inquiry data with populated user information
-      const fullInquiry = await inquiryService.getInquiryById(inquiry.id);
+      const fullInquiry = await inquiryService.getInquiry(inquiry.id);
       console.log('Full inquiry:', fullInquiry);
 
       // Mark the inquiry as read
@@ -599,7 +599,7 @@ function HomePage() {
   const fetchInquiryDescription = async (inquiryId) => {
     setIsLoadingInquiry(true);
     try {
-      const response = await inquiryService.getInquiryById(inquiryId);
+      const response = await inquiryService.getInquiry(inquiryId);
       if (response && response.description) {
         setInquiryDescription(response.description);
       } else {
@@ -684,7 +684,7 @@ function HomePage() {
       fetchInquiries(true);
       if (selectedListing && selectedListing._id === inquiryId) {
         try {
-          const updatedInquiry = await inquiryService.getInquiryById(inquiryId);
+          const updatedInquiry = await inquiryService.getInquiry(inquiryId);
           if (updatedInquiry) {
             setSelectedListing(prev => ({
               ...prev,
