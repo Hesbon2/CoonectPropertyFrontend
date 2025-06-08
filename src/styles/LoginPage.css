@@ -1,48 +1,48 @@
 .login-page {
   background-color: rgba(247, 247, 247, 1);
-  overflow: hidden;
-  font-family:
-    Inter,
-    -apple-system,
-    Roboto,
-    Helvetica,
-    sans-serif;
+  font-family: Inter, -apple-system, Roboto, Helvetica, sans-serif;
   position: relative;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .login-container {
   display: flex;
   width: 100%;
+  height: 100%;
   padding: 80px 32px;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
+  overflow: hidden;
 }
 
 @media (max-width: 991px) {
   .login-container {
-    max-width: 100%;
-    padding: 80px 20px;
+    padding: 20px;
+    height: 100vh;
+  }
+
+  .login-content {
+    height: 100%;
+    padding: 0;
+  }
+
+  .form-container {
+    max-height: 85vh;
+    margin: 20px 0;
   }
 }
 
 .login-content {
   display: flex;
-  min-height: 958px;
   width: 100%;
-  padding: 254px 0;
+  height: 100%;
   align-items: center;
   gap: 32px;
   justify-content: center;
   flex-wrap: wrap;
-}
-
-@media (max-width: 991px) {
-  .login-content {
-    max-width: 100%;
-    padding: 100px 0;
-  }
+  overflow: hidden;
 }
 
 .branding-section {
@@ -110,6 +110,8 @@
   margin: auto 0;
   padding: 32px 24px 24px;
   width: 448px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 @media (max-width: 991px) {

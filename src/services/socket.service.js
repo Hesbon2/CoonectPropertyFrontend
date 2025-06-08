@@ -13,7 +13,6 @@ class SocketService extends EventEmitter {
     this.handleInquiryUpdated = this.handleInquiryUpdated.bind(this);
     this.handleInquiryDeleted = this.handleInquiryDeleted.bind(this);
     this.handleEngagementUpdated = this.handleEngagementUpdated.bind(this);
-    this.handleBookmarkUpdated = this.handleBookmarkUpdated.bind(this);
     this.handleLikeUpdated = this.handleLikeUpdated.bind(this);
     this.handleUserStatusChanged = this.handleUserStatusChanged.bind(this);
     this.handleUserTyping = this.handleUserTyping.bind(this);
@@ -93,7 +92,6 @@ class SocketService extends EventEmitter {
 
     // Engagement updates
     this.socket.on('engagement_updated', this.handleEngagementUpdated);
-    this.socket.on('bookmark_updated', this.handleBookmarkUpdated);
     this.socket.on('like_updated', this.handleLikeUpdated);
 
     // User status updates
@@ -128,11 +126,6 @@ class SocketService extends EventEmitter {
   handleEngagementUpdated(data) {
     console.log('Socket: Received engagement_updated event', data);
     this.emit('engagement_updated', data);
-  }
-
-  handleBookmarkUpdated(data) {
-    console.log('Socket: Received bookmark_updated event', data);
-    this.emit('bookmark_updated', data);
   }
 
   handleLikeUpdated(data) {
@@ -306,13 +299,6 @@ class SocketService extends EventEmitter {
     if (this.socket) {
       console.log('Socket: Emitting engagement_update event', data);
       this.socket.emit('engagement_update', data);
-    }
-  }
-
-  emitBookmarkUpdate(data) {
-    if (this.socket) {
-      console.log('Socket: Emitting bookmark_update event', data);
-      this.socket.emit('bookmark_update', data);
     }
   }
 

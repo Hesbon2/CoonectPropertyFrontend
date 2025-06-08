@@ -1,10 +1,18 @@
-// Cloudinary configuration with direct values
-const CLOUD_NAME = 'mangs'; // Directly set cloud name
-const UPLOAD_PRESET = 'chat_images'; // Directly set upload preset
+// TODO: Replace these with environment variables
+const CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET;
 const FOLDER = 'property-connect/chat-images'; // Folder structure in Cloudinary
 
 export const uploadImage = async (file) => {
   try {
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      console.error('Missing Cloudinary configuration:', {
+        cloudName: CLOUD_NAME ? 'set' : 'missing',
+        uploadPreset: UPLOAD_PRESET ? 'set' : 'missing'
+      });
+      throw new Error('Cloudinary configuration missing. Please check your .env.local file.');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', UPLOAD_PRESET);

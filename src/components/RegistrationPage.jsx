@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../services";
+import { countries } from 'countries-list';
 import "../styles/RegistrationPage.css";
 
 const RegistrationPage = () => {
   const navigate = useNavigate();
+  const [countryList, setCountryList] = useState([]);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -14,10 +16,36 @@ const RegistrationPage = () => {
     password: "",
     confirmPassword: "",
     userType: "Customer",
-    nationality: "Kenyan"
+    nationality: "Kenyan",
+    phoneCountryCode: "+254",
+    whatsappCountryCode: "+254"
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Process countries data
+    const processedCountries = Object.entries(countries).map(([code, country]) => ({
+      code: code,
+      name: country.name,
+      phone: country.phone,
+      continent: country.continent
+    }));
+
+    // Sort countries: East African countries first, then alphabetically
+    const eastAfricanCodes = ['KE', 'TZ', 'UG', 'RW', 'BI', 'SS', 'ET', 'SO'];
+    const sortedCountries = processedCountries.sort((a, b) => {
+      const aIsEastAfrican = eastAfricanCodes.includes(a.code);
+      const bIsEastAfrican = eastAfricanCodes.includes(b.code);
+      
+      if (aIsEastAfrican && !bIsEastAfrican) return -1;
+      if (!aIsEastAfrican && bIsEastAfrican) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
+
+    setCountryList(sortedCountries);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -127,8 +155,8 @@ const RegistrationPage = () => {
                   required
                 >
                   <option value="Customer">Customer</option>
-                  <option value="Business Owner">Business Owner</option>
-                  <option value="Traveler">Traveler</option>
+                  <option value="Host">Host</option>
+                  <option value="Agent">Agent</option>
                 </select>
               </div>
             </div>
@@ -137,14 +165,21 @@ const RegistrationPage = () => {
               <div className="input-group">
                 <label className="input-label">Phone Number</label>
                 <div className="phone-input-container">
-                  <div className="country-code">
-                    <span>+254</span>
-                    <img
-                      src="https://cdn.builder.io/api/v1/image/assets/TEMP/7e8e5e661bf1c4f9a140270f18a9eb3a24f02d19?placeholderIfAbsent=true&apiKey=6902ff946ed54860819945c4f8303756"
-                      alt="Kenya flag"
-                      className="flag-icon"
-                    />
-                  </div>
+                  <select
+                    name="phoneCountryCode"
+                    value={formData.phoneCountryCode}
+                    onChange={handleChange}
+                    className="country-code"
+                  >
+                    {countryList.map(country => (
+                      <option 
+                        key={country.code} 
+                        value={`+${country.phone}`}
+                      >
+                        {country.name} (+{country.phone})
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="tel"
                     name="phoneNumber"
@@ -159,14 +194,21 @@ const RegistrationPage = () => {
               <div className="input-group">
                 <label className="input-label">WhatsApp Number</label>
                 <div className="phone-input-container">
-                  <div className="country-code">
-                    <span>+254</span>
-                    <img
-                      src="https://cdn.builder.io/api/v1/image/assets/TEMP/5ed834acec3a09791fa536cf3d1900499dbe698e?placeholderIfAbsent=true&apiKey=6902ff946ed54860819945c4f8303756"
-                      alt="Kenya flag"
-                      className="flag-icon"
-                    />
-                  </div>
+                  <select
+                    name="whatsappCountryCode"
+                    value={formData.whatsappCountryCode}
+                    onChange={handleChange}
+                    className="country-code"
+                  >
+                    {countryList.map(country => (
+                      <option 
+                        key={country.code} 
+                        value={`+${country.phone}`}
+                      >
+                        {country.name} (+{country.phone})
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="tel"
                     name="whatsappNumber"

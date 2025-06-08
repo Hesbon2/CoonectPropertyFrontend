@@ -31,17 +31,75 @@ const clearCache = () => {
 
 class InquiryService {
   async createInquiry(inquiryData) {
-    const response = await api.post('/inquiries', inquiryData);
+    const response = await api.post('/api/inquiries', inquiryData);
     clearCache(); // Clear cache when creating new inquiry
     return response.data;
   }
 
-  async getInquiries(queryParams) {
+  async getInquiryById(inquiryId) {
+    if (!inquiryId) {
+      throw new Error('Inquiry ID is required');
+    }
     try {
-      const response = await api.get(`/inquiries?${queryParams.toString()}`);
+      const cacheKey = `inquiry_${inquiryId}`;
+      const cachedData = getFromCache(cacheKey);
+      
+      if (cachedData) {
+        return cachedData;
+      }
+
+      const response = await api.get(`/api/inquiries/${inquiryId}`);
+      console.log('API Response:', response.data); // Add this line for debugging
+      setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
-      throw this.handleError(error);
+      console.error('Error fetching inquiry:', error);
+      throw error;
+    }
+  }
+
+  async getInquiries(queryParams) {
+    try {
+      // Format the filters
+      const formattedParams = new URLSearchParams();
+      
+      // Add all query params
+      if (queryParams instanceof URLSearchParams) {
+        // If queryParams is already a URLSearchParams object
+        for (const [key, value] of queryParams.entries()) {
+          if (value) {
+            formattedParams.append(key, value);
+          }
+        }
+      } else {
+        // If queryParams is a regular object
+        Object.entries(queryParams).forEach(([key, value]) => {
+          if (value) {
+            // Handle budget ranges
+            if (key === 'budget') {
+              const [min, max] = value.split('-');
+              if (min) formattedParams.append('minBudget', min);
+              if (max) formattedParams.append('maxBudget', max);
+            } 
+            // Handle date ranges
+            else if (key === 'checkInDate' || key === 'checkOutDate') {
+              formattedParams.append(key, new Date(value).toISOString());
+            }
+            // Handle all other filters
+            else {
+              formattedParams.append(key, value);
+            }
+          }
+        });
+      }
+
+      console.log('Sending filters to API:', formattedParams.toString()); // Debug log
+      const response = await api.get(`/api/inquiries?${formattedParams.toString()}`);
+      console.log('API Response:', response.data); // Debug log
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching inquiries:', error);
+      throw error;
     }
   }
 
@@ -54,7 +112,8 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/me?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/me?page=${page}&limit=${limit}`);
+      console.log('API Response:', response.data); // Add this line for debugging
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -72,7 +131,8 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/bookmarked?page=${page}&limit=${limit}`);
+      const response = await api.get(`/api/inquiries/bookmarked?page=${page}&limit=${limit}`);
+      console.log('API Response:', response.data); // Add this line for debugging
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -93,7 +153,8 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get(`/inquiries/${inquiryId}/engagement`);
+      const response = await api.get(`/api/inquiries/${inquiryId}/engagement`);
+      console.log('API Response:', response.data); // Add this line for debugging
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -107,7 +168,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/views`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/views`);
       // Clear stats cache for this inquiry
       await cache.del(`stats_${inquiryId}`);
       return response.data;
@@ -122,7 +183,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/likes`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/likes`);
       // Clear stats cache for this inquiry
       await cache.del(`stats_${inquiryId}`);
       return response.data;
@@ -137,7 +198,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/bookmarks`);
+      const response = await api.post(`/api/inquiries/${inquiryId}/bookmarks`);
       // Clear bookmarks cache since it will change
       clearCache();
       return response.data;
@@ -152,7 +213,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.post(`/inquiries/${inquiryId}/messages`, { message });
+      const response = await api.post(`/api/inquiries/${inquiryId}/messages`, { message });
       return response.data;
     } catch (error) {
       console.error('Error sending inquiry message:', error);
@@ -165,7 +226,7 @@ class InquiryService {
       throw new Error('Inquiry ID is required');
     }
     try {
-      const response = await api.put(`/inquiries/${inquiryId}`, updateData);
+      const response = await api.put(`/api/inquiries/${inquiryId}`, updateData);
       // Clear all caches since lists might change
       clearCache();
       return response.data;
@@ -177,7 +238,7 @@ class InquiryService {
 
   async deleteInquiry(inquiryId) {
     try {
-      const response = await api.delete(`/inquiries/${inquiryId}`);
+      const response = await api.delete(`/api/inquiries/${inquiryId}`);
       // Clear all caches since lists will change
       clearCache();
       return response.data;
@@ -269,7 +330,8 @@ class InquiryService {
         return cachedData;
       }
 
-      const response = await api.get('/inquiries/search', { params: formattedFilters });
+      const response = await api.get('/api/inquiries/search', { params: formattedFilters });
+      console.log('API Response:', response.data); // Add this line for debugging
       setCache(cacheKey, response.data);
       return response.data;
     } catch (error) {
@@ -331,6 +393,21 @@ class InquiryService {
     } else {
       // Something happened in setting up the request that triggered an Error
       return { message: error.message };
+    }
+  }
+
+  async markAsRead(inquiryId) {
+    if (!inquiryId) {
+      throw new Error('Inquiry ID is required');
+    }
+    try {
+      const response = await api.post(`/api/inquiries/${inquiryId}/read`);
+      // Clear stats cache for this inquiry
+      await cache.del(`stats_${inquiryId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking inquiry as read:', error);
+      throw error;
     }
   }
 }

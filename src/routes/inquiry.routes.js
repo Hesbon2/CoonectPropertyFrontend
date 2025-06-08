@@ -31,7 +31,7 @@ router.get('/me', async (req, res) => {
     const skip = (page - 1) * limit;
 
     const inquiries = await Inquiry
-      .find({ userId: req.user.id })
+      .find({ user: req.user.id })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
   try {
     const inquiry = new Inquiry({
       ...req.body,
-      userId: req.user.id
+      user: req.user.id
     });
     const newInquiry = await inquiry.save();
     res.status(201).json(newInquiry);

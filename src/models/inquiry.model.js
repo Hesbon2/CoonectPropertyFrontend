@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const inquirySchema = new mongoose.Schema({
-  userId: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -86,7 +86,7 @@ inquirySchema.virtual('location').get(function() {
 });
 
 // Compound index for filtering and sorting
-inquirySchema.index({ userId: 1, createdAt: -1 });
+inquirySchema.index({ user: 1, createdAt: -1 });
 inquirySchema.index({ county: 1, ward: 1, houseType: 1, budget: 1 });
 
 // Text index for search
